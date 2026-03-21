@@ -1,25 +1,25 @@
 <template>
   <div class="login-container">
-    <n-card class="login-card" title="Schema - 知识管理系统">
+    <n-card class="login-card" :title="t('auth.login.title')">
       <n-form
         ref="formRef"
         :model="formValue"
         :rules="rules"
         @submit.prevent="handleSubmit"
       >
-        <n-form-item path="email" label="邮箱">
+        <n-form-item path="email" :label="t('common.form.email')">
           <n-input
             v-model:value="formValue.email"
-            placeholder="请输入邮箱"
+            :placeholder="t('common.placeholder.email')"
             type="email"
             :disabled="userStore.loading"
           />
         </n-form-item>
         
-        <n-form-item path="password" label="密码">
+        <n-form-item path="password" :label="t('common.form.password')">
           <n-input
             v-model:value="formValue.password"
-            placeholder="请输入密码"
+            :placeholder="t('common.placeholder.password')"
             type="password"
             show-password-on="mousedown"
             :disabled="userStore.loading"
@@ -35,7 +35,7 @@
             block
             attr-type="submit"
           >
-            登录
+            {{ t('auth.login.submit') }}
           </n-button>
 
           <n-space justify="space-between">
@@ -45,7 +45,7 @@
               @click="$router.push('/register')"
               :disabled="userStore.loading"
             >
-              没有账号？立即注册
+              {{ t('auth.login.noAccount') }}
             </n-button>
             <n-button
               text
@@ -53,7 +53,7 @@
               @click="$router.push('/forget-password')"
               :disabled="userStore.loading"
             >
-              忘记密码？
+              {{ t('auth.login.forgotPassword') }}
             </n-button>
           </n-space>
         </n-space>
@@ -63,8 +63,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useMessage, type FormInst, type FormRules } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -72,6 +73,7 @@ const userStore = useUserStore()
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
+const { t } = useI18n()
 
 const formRef = ref<FormInst | null>(null)
 
@@ -80,16 +82,16 @@ const formValue = reactive({
   password: ''
 })
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    { required: true, message: t('common.validation.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('common.validation.emailInvalid'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+    { required: true, message: t('common.validation.passwordRequired'), trigger: 'blur' },
+    { min: 6, message: t('common.validation.passwordMin'), trigger: 'blur' }
   ]
-}
+}))
 
 const handleSubmit = async () => {
   try {
@@ -101,16 +103,16 @@ const handleSubmit = async () => {
     })
     
     if (result.success) {
-      message.success('登录成功')
+      message.success(t('auth.login.success'))
       
       // Redirect to original destination or home
       const redirect = route.query.redirect as string
       router.push(redirect || '/home')
     } else {
-      message.error(result.error || '登录失败')
+      message.error(result.error || t('auth.login.failed'))
     }
   } catch (error) {
-    message.error('请检查表单输入')
+    message.error(t('common.validation.checkFormInput'))
   }
 }
 </script>

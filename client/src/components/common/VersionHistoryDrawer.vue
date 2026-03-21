@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { pageApi } from '@/api/page'
 import type { PageVersion } from '@/types'
 import {
-  NDrawer, NDrawerContent, NButton, NIcon, NSpin, NList, NListItem,
+  NDrawer, NDrawerContent, NButton, NIcon, NSpin,
   NTime, NPopconfirm, NSelect, NInput, NAlert, useMessage, NInputGroup, NEmpty,
   NText
 } from 'naive-ui'
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+const { t } = useI18n()
 
 const loading = ref(false)
 const versions = ref<PageVersion[]>([])
@@ -52,7 +54,7 @@ const loadVersions = async () => {
     }
   } catch (e) {
     console.error('Failed to load versions', e)
-    message.error('Failed to load version history')
+    message.error(t('versionHistory.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -65,15 +67,15 @@ const handleCreateVersion = async () => {
   try {
     const res = await pageApi.createVersion(props.pageId, { message: newVersionMessage.value })
     if (res.code === 0) {
-      message.success('Version created successfully')
+      message.success(t('versionHistory.messages.createSuccess'))
       versions.value.unshift(res.data)
       newVersionMessage.value = ''
     } else {
-      message.error(res.message || 'Failed to create version')
+      message.error(res.message || t('versionHistory.messages.createFailed'))
     }
   } catch (e) {
     console.error('Failed to create version', e)
-    message.error('Failed to create version')
+    message.error(t('versionHistory.messages.createFailed'))
   }
 }
 
@@ -84,15 +86,15 @@ const handleRestoreVersion = async (versionId: string) => {
   try {
     const res = await pageApi.restoreVersion(props.pageId, versionId)
     if (res.code === 0) {
-      message.success('Version restored successfully')
+      message.success(t('versionHistory.messages.restoreSuccess'))
       emit('restore')
       emit('update:show', false)
     } else {
-      message.error(res.message || 'Failed to restore version')
+      message.error(res.message || t('versionHistory.messages.restoreFailed'))
     }
   } catch (e) {
     console.error('Failed to restore version', e)
-    message.error('Failed to restore version')
+    message.error(t('versionHistory.messages.restoreFailed'))
   }
 }
 
@@ -107,11 +109,11 @@ const handleCleanupVersions = async () => {
       showCleanupConfirm.value = false
       await loadVersions()
     } else {
-      message.error(res.message || 'Failed to clean up versions')
+      message.error(res.message || t('versionHistory.messages.cleanupFailed'))
     }
   } catch (e) {
     console.error('Failed to clean up versions', e)
-    message.error('Failed to clean up versions')
+    message.error(t('versionHistory.messages.cleanupFailed'))
   }
 }
 
@@ -122,20 +124,20 @@ const handleDeleteVersion = async (versionId: string) => {
   try {
     const res = await pageApi.deleteVersion(props.pageId, versionId)
     if (res.code === 0) {
-      message.success('Version deleted successfully')
+      message.success(t('versionHistory.messages.deleteSuccess'))
       await loadVersions()
     } else {
-      message.error(res.message || 'Failed to delete version')
+      message.error(res.message || t('versionHistory.messages.deleteFailed'))
     }
   } catch (e) {
     console.error('Failed to delete version', e)
-    message.error('Failed to delete version')
+    message.error(t('versionHistory.messages.deleteFailed'))
   }
 }
 
 // Get version preview (first few characters of content)
 const getVersionPreview = (version: PageVersion) => {
-  if (!version.content || !version.content.content) return 'No content preview'
+  if (!version.content || !version.content.content) return t('versionHistory.preview.noContent')
 
   try {
     const text = version.content.content
@@ -148,9 +150,9 @@ const getVersionPreview = (version: PageVersion) => {
       .join(' ')
       .trim()
 
-    return text.substring(0, 80) + (text.length > 80 ? '...' : '') || 'Empty content'
+    return text.substring(0, 80) + (text.length > 80 ? '...' : '') || t('versionHistory.preview.emptyContent')
   } catch (e) {
-    return 'Preview unavailable'
+    return t('versionHistory.preview.unavailable')
   }
 }
 
@@ -185,7 +187,7 @@ onMounted(() => {
     @update:show="$emit('update:show', $event)"
   >
     <n-drawer-content
-      title="Version History"
+      :title="t('versionHistory.title')"
       :closable="true"
       :body-content-style="{ padding: 0 }"
       class="version-drawer"
@@ -201,7 +203,7 @@ onMounted(() => {
             <template #header>
               <div class="info-header">
                 <n-icon><InformationCircleOutline /></n-icon>
-                <span>Auto-save is active (2min interval)</span>
+                <span>{{ t('versionHistory.autoSaveHint') }}</span>
               </div>
             </template>
           </n-alert>
@@ -210,7 +212,7 @@ onMounted(() => {
             <n-input-group>
               <n-input
                 v-model:value="newVersionMessage"
-                placeholder="Version remark (max 50 chars)"
+                :placeholder="t('versionHistory.newVersionPlaceholder')"
                 size="small"
                 :maxlength="50"
                 show-count
@@ -218,7 +220,7 @@ onMounted(() => {
               />
               <n-button type="primary" size="small" :disabled="!props.pageId" @click="handleCreateVersion">
                 <template #icon><n-icon><SaveOutline /></n-icon></template>
-                Save
+                {{ t('versionHistory.save') }}
               </n-button>
             </n-input-group>
           </div>
@@ -227,15 +229,14 @@ onMounted(() => {
         <!-- History List -->
         <div class="list-container">
           <div v-if="hasVersions" class="versions-list">
-             <n-list hoverable>
-               <n-list-item
+               <div
                  v-for="version in sortedVersions"
                  :key="version.id"
                  class="version-item"
                >
                  <div class="version-meta-row">
                     <div class="version-time-group">
-                      <n-time :time="new Date(version.createdAt)" type="datetime" format="MM-dd HH:mm" class="version-time"/>
+                      <n-time :time="new Date(version.createdAt)" type="datetime" format="MM-dd HH:mm" class="version-time" />
                       <n-text depth="3" class="relative-time">
                          (<n-time :time="new Date(version.createdAt)" type="relative" />)
                       </n-text>
@@ -244,23 +245,23 @@ onMounted(() => {
                     <div class="version-actions">
                        <n-popconfirm
                          @positive-click="handleRestoreVersion(version.id)"
-                         positive-text="Restore"
-                         negative-text="Cancel"
+                         :positive-text="t('versionHistory.restore')"
+                         :negative-text="t('common.actions.cancel')"
                        >
                          <template #trigger>
                            <n-button size="tiny" secondary type="primary">
-                             Restore
+                             {{ t('versionHistory.restore') }}
                            </n-button>
                          </template>
                          <div class="restore-confirm-content">
-                           <p>Are you sure you want to restore to this version?</p>
-                           <n-text depth="3" size="small">Current content will be backed up as a new version.</n-text>
+                           <p>{{ t('versionHistory.restoreConfirm') }}</p>
+                           <n-text depth="3" size="small">{{ t('versionHistory.restoreConfirmHint') }}</n-text>
                          </div>
                        </n-popconfirm>
                        <n-popconfirm
                          @positive-click="handleDeleteVersion(version.id)"
-                         positive-text="Delete"
-                         negative-text="Cancel"
+                         :positive-text="t('common.actions.delete')"
+                         :negative-text="t('common.actions.cancel')"
                        >
                          <template #trigger>
                            <n-button size="tiny" secondary type="error">
@@ -268,8 +269,8 @@ onMounted(() => {
                            </n-button>
                          </template>
                          <div class="restore-confirm-content">
-                           <p>Are you sure you want to delete this version?</p>
-                           <n-text depth="3" size="small">This action cannot be undone.</n-text>
+                           <p>{{ t('versionHistory.deleteConfirm') }}</p>
+                           <n-text depth="3" size="small">{{ t('versionHistory.deleteConfirmHint') }}</n-text>
                          </div>
                        </n-popconfirm>
                     </div>
@@ -282,14 +283,13 @@ onMounted(() => {
                  <div class="version-preview">
                     {{ getVersionPreview(version) }}
                  </div>
-               </n-list-item>
-             </n-list>
+               </div>
           </div>
           
           <div v-else class="empty-state">
-            <n-empty description="No version history available">
+            <n-empty :description="t('versionHistory.noVersionHistory')">
                <template #extra>
-                  <span class="empty-hint">Edit content to create versions</span>
+                  <span class="empty-hint">{{ t('versionHistory.emptyHint') }}</span>
                </template>
             </n-empty>
           </div>
@@ -299,13 +299,13 @@ onMounted(() => {
       <!-- Footer: Cleanup Controls -->
       <template #footer>
         <div class="cleanup-footer">
-           <span class="label">Clean older than:</span>
+           <span class="label">{{ t('versionHistory.cleanOlderThan') }}</span>
            <n-select
             v-model:value="cleanupPeriod"
             :options="[
-              { label: '1 Day', value: 'day' },
-              { label: '1 Week', value: 'week' },
-              { label: '1 Month', value: 'month' }
+              { label: t('versionHistory.period.day'), value: 'day' },
+              { label: t('versionHistory.period.week'), value: 'week' },
+              { label: t('versionHistory.period.month'), value: 'month' }
             ]"
             size="tiny"
             class="cleanup-select"
@@ -318,10 +318,10 @@ onMounted(() => {
             <template #trigger>
               <n-button size="tiny" secondary type="error" :disabled="!hasVersions">
                 <template #icon><n-icon><TrashOutline /></n-icon></template>
-                Clean Up
+                {{ t('versionHistory.cleanUp') }}
               </n-button>
             </template>
-            <p>Delete versions older than selected period?</p>
+            <p>{{ t('versionHistory.cleanConfirm') }}</p>
           </n-popconfirm>
         </div>
       </template>
@@ -366,16 +366,24 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding: 12px;
   padding-bottom: 20px;
 }
 
 .version-item {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--n-divider-color);
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--n-divider-color);
+  border-radius: 10px;
+  background-color: var(--n-color-embedded);
 
   &:hover {
     background-color: var(--n-color-hover);
   }
+}
+
+.version-item:last-child {
+  margin-bottom: 0;
 }
 
 .version-meta-row {

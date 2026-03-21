@@ -77,6 +77,9 @@ function convertNode(node: TiptapNode, _index: number, _siblings: TiptapNode[]):
     case 'horizontalRule':
       return '---\n\n'
 
+    case 'pageBreak':
+      return '[========]\n\n'
+
     case 'hardBreak':
       return '  \n'
 

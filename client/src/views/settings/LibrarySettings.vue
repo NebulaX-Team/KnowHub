@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NCard,
   NDataTable,
@@ -38,6 +39,7 @@ import { useLibraryStore } from '@/stores/library'
 const router = useRouter()
 const message = useMessage()
 const libraryStore = useLibraryStore()
+const { t } = useI18n()
 
 const loading = ref(false)
 const libraries = ref<Library[]>([])
@@ -56,9 +58,9 @@ const formModel = ref({
   isPublic: false
 })
 
-const formRules = {
-  title: { required: true, message: 'Please enter a library name', trigger: 'blur' }
-}
+const formRules = computed(() => ({
+  title: { required: true, message: t('settingsPage.libraries.validation.nameRequired'), trigger: 'blur' }
+}))
 
 const filteredLibraries = computed(() => {
   if (!searchQuery.value) return libraries.value
@@ -69,9 +71,9 @@ const filteredLibraries = computed(() => {
   )
 })
 
-const columns: DataTableColumns<Library> = [
+const columns = computed<DataTableColumns<Library>>(() => [
   {
-    title: 'Library',
+    title: t('settingsPage.libraries.table.library'),
     key: 'title',
     minWidth: 200,
     render: (row) => {
@@ -91,14 +93,14 @@ const columns: DataTableColumns<Library> = [
     }
   },
   {
-    title: 'Pages',
+    title: t('settingsPage.libraries.table.pages'),
     key: 'pageCount',
     width: 80,
     align: 'center',
     render: (row) => h(NTag, { size: 'small', round: true, bordered: false }, { default: () => String(row.pageCount ?? 0) })
   },
   {
-    title: 'Public',
+    title: t('settingsPage.libraries.table.public'),
     key: 'isPublic',
     width: 80,
     align: 'center',
@@ -106,22 +108,22 @@ const columns: DataTableColumns<Library> = [
       type: row.isPublic ? 'success' : 'default',
       size: 'small',
       bordered: false
-    }, { default: () => row.isPublic ? 'Yes' : 'No' })
+    }, { default: () => row.isPublic ? t('common.status.yes') : t('common.status.no') })
   },
   {
-    title: 'Created',
+    title: t('settingsPage.libraries.table.created'),
     key: 'createdAt',
     width: 140,
     render: (row) => new Date(row.createdAt).toLocaleDateString()
   },
   {
-    title: 'Updated',
+    title: t('settingsPage.libraries.table.updated'),
     key: 'updatedAt',
     width: 140,
     render: (row) => new Date(row.updatedAt).toLocaleDateString()
   },
   {
-    title: 'Actions',
+    title: t('settingsPage.libraries.table.actions'),
     key: 'actions',
     width: 160,
     fixed: 'right',
@@ -133,21 +135,21 @@ const columns: DataTableColumns<Library> = [
               size: 'small', quaternary: true, circle: true,
               onClick: () => navigateToLibrary(row)
             }, { icon: () => h(NIcon, { component: OpenOutline }) }),
-            default: () => 'Open Library'
+            default: () => t('settingsPage.libraries.tooltips.openLibrary')
           }),
           h(NTooltip, null, {
             trigger: () => h(NButton, {
               size: 'small', quaternary: true, circle: true,
               onClick: () => openEditModal(row)
             }, { icon: () => h(NIcon, { component: CreateOutline }) }),
-            default: () => 'Edit'
+            default: () => t('common.actions.edit')
           }),
           h(NPopconfirm, {
             onPositiveClick: () => handleDelete(row.id),
-            positiveText: 'Delete',
-            negativeText: 'Cancel'
+            positiveText: t('common.actions.delete'),
+            negativeText: t('common.actions.cancel')
           }, {
-            default: () => `Delete "${row.title}" and all its pages? This cannot be undone.`,
+            default: () => t('settingsPage.libraries.confirmDelete', { title: row.title }),
             trigger: () => h(NButton, {
               size: 'small', quaternary: true, circle: true, type: 'error'
             }, { icon: () => h(NIcon, { component: TrashOutline }) })
@@ -156,7 +158,7 @@ const columns: DataTableColumns<Library> = [
       })
     }
   }
-]
+])
 
 async function loadLibraries() {
   loading.value = true
@@ -165,10 +167,10 @@ async function loadLibraries() {
     if (response.code === 0) {
       libraries.value = response.data
     } else {
-      message.error('Failed to load libraries')
+      message.error(t('settingsPage.libraries.messages.loadFailed'))
     }
   } catch {
-    message.error('Failed to load libraries')
+    message.error(t('settingsPage.libraries.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -212,13 +214,13 @@ async function handleSubmit() {
       }
       const response = await libraryApi.createLibrary(data)
       if (response.code === 0) {
-        message.success('Library created successfully')
+        message.success(t('settingsPage.libraries.messages.createSuccess'))
         showModal.value = false
         await loadLibraries()
         // Refresh the library store so sidebar updates
         await libraryStore.fetchLibraries()
       } else {
-        message.error('Failed to create library')
+        message.error(t('settingsPage.libraries.messages.createFailed'))
       }
     } else if (editingLibraryId.value) {
       const data: UpdateLibraryRequest = {
@@ -229,16 +231,16 @@ async function handleSubmit() {
       }
       const response = await libraryApi.updateLibrary(editingLibraryId.value, data)
       if (response.code === 0) {
-        message.success('Library updated successfully')
+        message.success(t('settingsPage.libraries.messages.updateSuccess'))
         showModal.value = false
         await loadLibraries()
         await libraryStore.fetchLibraries()
       } else {
-        message.error('Failed to update library')
+        message.error(t('settingsPage.libraries.messages.updateFailed'))
       }
     }
   } catch {
-    message.error('Operation failed')
+    message.error(t('common.messages.operationFailed'))
   } finally {
     formLoading.value = false
   }
@@ -248,14 +250,14 @@ async function handleDelete(id: string) {
   try {
     const response = await libraryApi.deleteLibrary(id)
     if (response.code === 0) {
-      message.success('Library deleted successfully')
+      message.success(t('settingsPage.libraries.messages.deleteSuccess'))
       await loadLibraries()
       await libraryStore.fetchLibraries()
     } else {
-      message.error('Failed to delete library')
+      message.error(t('settingsPage.libraries.messages.deleteFailed'))
     }
   } catch {
-    message.error('Failed to delete library')
+    message.error(t('settingsPage.libraries.messages.deleteFailed'))
   }
 }
 
@@ -272,8 +274,8 @@ onMounted(() => {
   <div class="settings-page">
     <div class="header">
       <div>
-        <h2>Libraries</h2>
-        <p class="description">Manage your knowledge base libraries</p>
+        <h2>{{ t('settingsPage.libraries.title') }}</h2>
+        <p class="description">{{ t('settingsPage.libraries.description') }}</p>
       </div>
     </div>
 
@@ -282,7 +284,7 @@ onMounted(() => {
         <NSpace justify="space-between" align="center" style="flex-wrap: wrap; gap: 12px">
           <NInput
             v-model:value="searchQuery"
-            placeholder="Search libraries..."
+            :placeholder="t('settingsPage.libraries.searchPlaceholder')"
             clearable
             style="width: 280px"
           >
@@ -292,11 +294,11 @@ onMounted(() => {
           </NInput>
           <NSpace>
             <NButton @click="loadLibraries" :loading="loading" secondary>
-              Refresh
+              {{ t('settingsPage.libraries.buttons.refresh') }}
             </NButton>
             <NButton type="primary" @click="openCreateModal">
               <template #icon><NIcon :component="AddOutline" /></template>
-              New Library
+              {{ t('settingsPage.libraries.buttons.newLibrary') }}
             </NButton>
           </NSpace>
         </NSpace>
@@ -304,10 +306,10 @@ onMounted(() => {
 
       <NSpin :show="loading">
         <div v-if="filteredLibraries.length === 0 && !loading" class="empty-state">
-          <NEmpty description="No libraries found">
+          <NEmpty :description="t('settingsPage.libraries.noLibraries')">
             <template #extra>
               <NButton type="primary" size="small" @click="openCreateModal">
-                Create your first library
+                {{ t('settingsPage.libraries.createFirst') }}
               </NButton>
             </template>
           </NEmpty>
@@ -327,10 +329,10 @@ onMounted(() => {
     <!-- Create / Edit Modal -->
     <NModal
       v-model:show="showModal"
-      :title="modalMode === 'create' ? 'Create Library' : 'Edit Library'"
+      :title="modalMode === 'create' ? t('settingsPage.libraries.modal.createTitle') : t('settingsPage.libraries.modal.editTitle')"
       preset="dialog"
-      :positive-text="modalMode === 'create' ? 'Create' : 'Save'"
-      negative-text="Cancel"
+      :positive-text="modalMode === 'create' ? t('settingsPage.libraries.buttons.create') : t('settingsPage.libraries.buttons.save')"
+      :negative-text="t('common.actions.cancel')"
       :loading="formLoading"
       @positive-click="handleSubmit"
       style="width: 480px"
@@ -343,21 +345,21 @@ onMounted(() => {
         label-width="auto"
         style="margin-top: 16px"
       >
-        <NFormItem label="Name" path="title">
-          <NInput v-model:value="formModel.title" placeholder="Library name" />
+        <NFormItem :label="t('settingsPage.libraries.form.name')" path="title">
+          <NInput v-model:value="formModel.title" :placeholder="t('settingsPage.libraries.placeholders.name')" />
         </NFormItem>
-        <NFormItem label="Description" path="description">
+        <NFormItem :label="t('settingsPage.libraries.form.description')" path="description">
           <NInput
             v-model:value="formModel.description"
             type="textarea"
-            placeholder="Optional description"
+            :placeholder="t('settingsPage.libraries.placeholders.description')"
             :rows="2"
           />
         </NFormItem>
-        <NFormItem label="Icon" path="icon">
-          <NInput v-model:value="formModel.icon" placeholder="Emoji icon (e.g. 📚)" />
+        <NFormItem :label="t('settingsPage.libraries.form.icon')" path="icon">
+          <NInput v-model:value="formModel.icon" :placeholder="t('settingsPage.libraries.placeholders.icon')" />
         </NFormItem>
-        <NFormItem label="Public" path="isPublic">
+        <NFormItem :label="t('settingsPage.libraries.form.public')" path="isPublic">
           <NSwitch v-model:value="formModel.isPublic" />
         </NFormItem>
       </NForm>

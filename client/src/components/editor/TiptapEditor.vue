@@ -5,7 +5,12 @@ import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { CustomLink } from './extensions/custom-link'
-import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
+import {
+  Table,
+  TableCell as BaseTableCell,
+  TableHeader as BaseTableHeader,
+  TableRow,
+} from '@tiptap/extension-table'
 import { ImageBlock } from './extensions/image-block'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
@@ -15,9 +20,11 @@ import SlashCommand from './extensions/slash-command'
 import PageReference from './extensions/page-reference'
 import { Admonition } from './extensions/admonition'
 import { MathBlock, MathInline } from './extensions/math-block'
+import { PageBreak } from './extensions/page-break'
 import { common, createLowlight } from 'lowlight'
 import 'katex/dist/katex.min.css'
 import { ref, nextTick, onBeforeUnmount, onMounted, toRaw, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NIcon, useMessage } from 'naive-ui'
 import { useRouter, useRoute } from 'vue-router'
 import { uploadApi } from '@/api/upload'
@@ -46,6 +53,44 @@ import { processLatexInMarkdown, containsLatex } from '@/utils/latex-parser'
 
 const lowlight = createLowlight(common)
 const message = useMessage()
+const { t } = useI18n()
+
+const normalizeTableAlign = (value: string | null | undefined) => {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'left' || normalized === 'center' || normalized === 'right'
+    ? normalized
+    : null
+}
+
+const createTableAlignAttribute = () => ({
+  default: null,
+  parseHTML: (element: HTMLElement) => normalizeTableAlign(
+    element.getAttribute('align') || element.style.textAlign || null,
+  ),
+  renderHTML: (attributes: { align?: string | null }) => {
+    const align = normalizeTableAlign(attributes.align)
+    return align ? { align } : {}
+  },
+})
+
+const TableCell = BaseTableCell.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      align: createTableAlignAttribute(),
+    }
+  },
+})
+
+const TableHeader = BaseTableHeader.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      align: createTableAlignAttribute(),
+    }
+  },
+})
 
 interface Props {
   content?: any
@@ -106,6 +151,250 @@ const handleOpenMarkdownImporter = () => {
     showMarkdownImporter.value = true
 }
 
+const normalizeTableBar = (line: string) => line.replace(/｜/g, '|')
+
+const isPipeTableLine = (line: string) => {
+  const normalized = normalizeTableBar(line).trim()
+  if (!normalized) return false
+  const pipeCount = (normalized.match(/\|/g) || []).length
+  return pipeCount >= 2
+}
+
+const isTableSeparatorLine = (line: string) => {
+  const normalized = normalizeTableBar(line).trim()
+  if (!normalized.includes('|')) return false
+  const cells = normalized
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+
+  if (cells.length === 0) return false
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell))
+}
+
+const normalizePipeTableLine = (line: string) => {
+  const normalized = normalizeTableBar(line).trim()
+  if (!normalized) return ''
+
+  let row = normalized
+  if (!row.startsWith('|')) row = `| ${row}`
+  if (!row.endsWith('|')) row = `${row} |`
+  return row
+}
+
+const findNextNonEmptyLineIndex = (lines: string[], start: number) => {
+  let index = start
+  while (index < lines.length) {
+    if (lines[index].trim()) return index
+    index += 1
+  }
+  return -1
+}
+
+const looksLikeTableHeaderStart = (lines: string[], index: number) => {
+  if (index < 0 || index >= lines.length) return false
+  const headerLine = lines[index]
+  if (!isPipeTableLine(headerLine) || isTableSeparatorLine(headerLine)) return false
+
+  const separatorIndex = findNextNonEmptyLineIndex(lines, index + 1)
+  if (separatorIndex === -1) return false
+  return isTableSeparatorLine(lines[separatorIndex])
+}
+
+const normalizeLooseMarkdownTables = (content: string) => {
+  const lines = content.split(/\r?\n/)
+  const result: string[] = []
+
+  let i = 0
+  while (i < lines.length) {
+    if (!isPipeTableLine(lines[i])) {
+      result.push(lines[i])
+      i += 1
+      continue
+    }
+
+    const tableLines: string[] = []
+    let j = i
+
+    while (j < lines.length) {
+      const current = lines[j]
+
+      if (!current.trim()) {
+        const k = findNextNonEmptyLineIndex(lines, j + 1)
+
+        if (k < lines.length && tableLines.length > 0 && isPipeTableLine(lines[k])) {
+          const separatorIndex = tableLines.findIndex(isTableSeparatorLine)
+          const hasSeparator = separatorIndex !== -1
+
+          // Keep blank line if a complete table is followed by another table header,
+          // so two tables are not merged into one malformed table.
+          if (hasSeparator && looksLikeTableHeaderStart(lines, k)) {
+            break
+          }
+
+          j = k
+          continue
+        }
+        break
+      }
+
+      if (!isPipeTableLine(current)) {
+        break
+      }
+
+      tableLines.push(normalizePipeTableLine(current))
+      j += 1
+    }
+
+    if (tableLines.length >= 2 && tableLines.some(isTableSeparatorLine)) {
+      result.push(...tableLines)
+      i = j
+      continue
+    }
+
+    result.push(lines[i])
+    i += 1
+  }
+
+  return result.join('\n')
+}
+
+const looksLikeMarkdown = (content: string) => {
+  const text = normalizeTableBar(content).trim()
+  if (!text) return false
+
+  const blockPatterns = [
+    /^\s{0,3}#{1,6}\s+\S+/m,
+    /^\s{0,3}>\s+\S+/m,
+    /^\s{0,3}([-*+]|\d+\.)\s+\S+/m,
+    /^\s{0,3}```[\w-]*\n[\s\S]*?\n```/m,
+    /^\s{0,3}\|.+\|\s*$/m,
+    /^\s{0,3}[-*_]{3,}\s*$/m,
+  ]
+
+  if (blockPatterns.some((pattern) => pattern.test(text))) {
+    return true
+  }
+
+  const inlinePatterns = [
+    /!\[[^\]]*\]\([^)]+\)/,
+    /\[[^\]]+\]\([^)]+\)/,
+    /(^|[^\*])\*\*[^*\n]+\*\*([^\*]|$)/,
+    /(^|[^_])__[^_\n]+__([^_]|$)/,
+    /(^|[^\*])\*[^*\n]+\*([^\*]|$)/,
+    /(^|[^_])_[^_\n]+_([^_]|$)/,
+    /`[^`\n]+`/,
+    /~~[^~\n]+~~/,
+  ]
+
+  const inlineSignalCount = inlinePatterns.reduce((count, pattern) => (
+    pattern.test(text) ? count + 1 : count
+  ), 0)
+
+  if (inlineSignalCount >= 2) {
+    return true
+  }
+
+  return text.includes('\n') && inlineSignalCount >= 1
+}
+
+const escapeHtmlForAttribute = (text: string) => text
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;')
+
+const convertFencedMathBlocks = (content: string) => content.replace(
+  /```(?:math|katex|latex)\s*\n([\s\S]*?)```/gi,
+  (_match, latex) => {
+    const normalized = String(latex || '').trim()
+    const escapedLatex = escapeHtmlForAttribute(normalized)
+    return `<div data-math-block="" data-latex="${escapedLatex}"></div>`
+  },
+)
+
+const convertPageBreakMarkers = (content: string) => content.replace(
+  /^\s*\[={3,}\]\s*$/gm,
+  '\n<div data-page-break="true"></div>\n',
+)
+
+const normalizeImportedHtml = (html: string) => {
+  if (!html.trim()) return html
+
+  const doc = new DOMParser().parseFromString(`<div id="__md_root__">${html}</div>`, 'text/html')
+  const root = doc.getElementById('__md_root__')
+  if (!root) return html
+
+  // Convert GFM task list HTML into Tiptap task list schema.
+  const uls = Array.from(root.querySelectorAll('ul'))
+  for (const ul of uls) {
+    const listItems = Array.from(ul.children).filter(
+      (child): child is HTMLLIElement => child instanceof HTMLLIElement,
+    )
+
+    let hasTaskItems = false
+
+    for (const li of listItems) {
+      const checkbox = li.querySelector(':scope > input[type="checkbox"]') as HTMLInputElement | null
+      if (!checkbox) continue
+
+      hasTaskItems = true
+      li.setAttribute('data-type', 'taskItem')
+      li.setAttribute('data-checked', checkbox.hasAttribute('checked') ? 'true' : 'false')
+      checkbox.remove()
+
+      const first = li.firstChild
+      if (first && first.nodeType === Node.TEXT_NODE) {
+        first.textContent = (first.textContent || '').replace(/^\s+/, '')
+      }
+
+      const firstElement = li.firstElementChild
+      if (!firstElement || firstElement.tagName !== 'P') {
+        const paragraph = doc.createElement('p')
+        while (
+          li.firstChild
+          && !(li.firstChild instanceof HTMLElement && (li.firstChild.tagName === 'UL' || li.firstChild.tagName === 'OL'))
+        ) {
+          paragraph.appendChild(li.firstChild)
+        }
+
+        if (paragraph.textContent?.trim() || paragraph.children.length > 0) {
+          li.insertBefore(paragraph, li.firstChild)
+        }
+      }
+    }
+
+    if (hasTaskItems) {
+      ul.setAttribute('data-type', 'taskList')
+    }
+  }
+
+  return root.innerHTML
+}
+
+const markdownToHtml = async (content: string) => {
+  let processedContent = normalizeLooseMarkdownTables(content)
+  processedContent = convertFencedMathBlocks(processedContent)
+  processedContent = convertPageBreakMarkers(processedContent)
+  if (containsLatex(processedContent)) {
+    processedContent = processLatexInMarkdown(processedContent)
+  }
+  const html = await marked.parse(processedContent, { gfm: true })
+  return normalizeImportedHtml(html)
+}
+
+const insertMarkdownAtSelection = async (content: string) => {
+  if (!editor.value) return false
+
+  const html = await markdownToHtml(content)
+  const { from, to } = editor.value.state.selection
+  editor.value.chain().focus().insertContentAt({ from, to }, html).run()
+  return true
+}
+
 // Handle page reference clicks
 const handlePageReferenceClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement
@@ -136,25 +425,11 @@ const handlePageReferenceClick = (event: MouseEvent) => {
 const handleImportMarkdown = async (content: string) => {
     if (editor.value) {
         try {
-            // 处理LaTeX公式，将其转换为HTML格式
-            let processedContent = content
-            if (containsLatex(content)) {
-                processedContent = processLatexInMarkdown(content)
-            }
-            
-            // Convert markdown to HTML
-            const html = await marked(processedContent)
-            
-            // Get current position
-            const { from } = editor.value.state.selection
-            
-            // Insert HTML content at current position
-            editor.value.chain().focus().insertContentAt(from, html).run()
-            
-            message.success('Markdown导入成功')
+            await insertMarkdownAtSelection(content)
+            message.success(t('editor.markdownImporter.importSuccess'))
         } catch (error) {
             console.error('Failed to parse markdown:', error)
-            message.error('Markdown解析失败')
+            message.error(t('editor.markdownImporter.importFailed'))
         }
     }
 }
@@ -211,7 +486,7 @@ const editor = useEditor({
       codeBlock: false, // Disable default codeBlock to use lowlight
     }),
     Placeholder.configure({
-      placeholder: "Type '/' for commands...",
+      placeholder: t('editor.placeholder'),
     }),
     CustomLink.configure({
       openOnClick: false,
@@ -236,6 +511,7 @@ const editor = useEditor({
     Admonition,
     MathBlock,
     MathInline,
+    PageBreak,
   ],
   onUpdate: ({ editor }: { editor: any }) => {
     emit('update', editor.getJSON())
@@ -272,20 +548,44 @@ const editor = useEditor({
              uploadApi.uploadImage(file, props.pageId, props.libraryId).then(res => {
                  const url = res.url || (res.data && res.data.url)
                  if (url) {
-                    const { schema } = view.state
-                    const node = schema.nodes.image.create({ src: url })
-                    const transaction = view.state.tr.insert(coordinates.pos, node)
-                    view.dispatch(transaction)
+                    editor.value?.chain()
+                      .insertContentAt(coordinates.pos, {
+                        type: 'image',
+                        attrs: { src: url }
+                      })
+                      .run()
                  }
              }).catch(err => {
                  console.error(err)
-                 message.error('Image upload failed')
+                 message.error(t('editor.imageUploader.messages.uploadFailed'))
              })
              return true
           }
         }
       }
       return false
+    },
+    handlePaste: (_view, event) => {
+      if (!props.editable || !editor.value) return false
+
+      const clipboardData = event.clipboardData
+      if (!clipboardData) return false
+
+      if (clipboardData.files && clipboardData.files.length > 0) {
+        return false
+      }
+
+      const text = clipboardData.getData('text/plain')
+      if (!text || !looksLikeMarkdown(text)) {
+        return false
+      }
+
+      event.preventDefault()
+      void insertMarkdownAtSelection(text).catch((error) => {
+        console.error('Failed to parse pasted markdown:', error)
+        editor.value?.chain().focus().insertContent(text).run()
+      })
+      return true
     }
   }
 })
@@ -345,28 +645,28 @@ watch(() => props.content, (newContent) => {
       <button
         @click="editor.chain().focus().toggleBold().run()"
         :class="{ 'is-active': editor.isActive('bold') }"
-        title="Bold"
+        :title="t('editor.bubble.bold')"
       >
         B
       </button>
       <button
         @click="editor.chain().focus().toggleItalic().run()"
         :class="{ 'is-active': editor.isActive('italic') }"
-        title="Italic"
+        :title="t('editor.bubble.italic')"
       >
         I
       </button>
       <button
         @click="editor.chain().focus().toggleStrike().run()"
         :class="{ 'is-active': editor.isActive('strike') }"
-        title="Strike"
+        :title="t('editor.bubble.strike')"
       >
         S
       </button>
       <button
         @click="editor.chain().focus().toggleCode().run()"
         :class="{ 'is-active': editor.isActive('code') }"
-        title="Code"
+        :title="t('editor.bubble.code')"
       >
         <n-icon><CodeSlash /></n-icon>
       </button>
@@ -376,21 +676,21 @@ watch(() => props.content, (newContent) => {
       <button
         @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
         :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }"
-        title="H1"
+        :title="t('editor.bubble.heading1')"
       >
         H1
       </button>
       <button
         @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
         :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }"
-        title="H2"
+        :title="t('editor.bubble.heading2')"
       >
         H2
       </button>
       <button
         @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
         :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
-        title="H3"
+        :title="t('editor.bubble.heading3')"
       >
         H3
       </button>
@@ -400,21 +700,21 @@ watch(() => props.content, (newContent) => {
       <button
         @click="editor.chain().focus().toggleBulletList().run()"
         :class="{ 'is-active': editor.isActive('bulletList') }"
-        title="Bullet List"
+        :title="t('editor.bubble.bulletList')"
       >
         <n-icon><List /></n-icon>
       </button>
       <button
         @click="editor.chain().focus().toggleOrderedList().run()"
         :class="{ 'is-active': editor.isActive('orderedList') }"
-        title="Ordered List"
+        :title="t('editor.bubble.orderedList')"
       >
         <n-icon><ListCircle /></n-icon>
       </button>
       <button
         @click="editor.chain().focus().toggleBlockquote().run()"
         :class="{ 'is-active': editor.isActive('blockquote') }"
-        title="Blockquote"
+        :title="t('editor.bubble.blockquote')"
       >
         <n-icon><ChatboxEllipsesOutline /></n-icon>
       </button>
@@ -424,7 +724,7 @@ watch(() => props.content, (newContent) => {
       <button
         @click="toggleLink"
         :class="{ 'is-active': editor.isActive('link') }"
-        title="Link"
+        :title="t('editor.bubble.link')"
       >
         <n-icon><LinkOutline /></n-icon>
       </button>
@@ -444,34 +744,56 @@ watch(() => props.content, (newContent) => {
       }"
       class="bubble-menu table-menu"
     >
-      <button @click="editor.chain().focus().addColumnBefore().run()" title="Add Column Before">
+      <button @click="editor.chain().focus().addColumnBefore().run()" :title="t('editor.tableMenu.addColumnBefore')">
         <n-icon><ArrowBackOutline /></n-icon>
       </button>
-      <button @click="editor.chain().focus().addColumnAfter().run()" title="Add Column After">
+      <button @click="editor.chain().focus().addColumnAfter().run()" :title="t('editor.tableMenu.addColumnAfter')">
         <n-icon><ArrowForwardOutline /></n-icon>
       </button>
-      <button @click="editor.chain().focus().deleteColumn().run()" title="Delete Column">
+      <button @click="editor.chain().focus().deleteColumn().run()" :title="t('editor.tableMenu.deleteColumn')">
         <n-icon><RemoveCircleOutline /></n-icon>
       </button>
       <div class="divider"></div>
-      <button @click="editor.chain().focus().addRowBefore().run()" title="Add Row Before">
+      <button @click="editor.chain().focus().addRowBefore().run()" :title="t('editor.tableMenu.addRowBefore')">
         <n-icon><ArrowUpOutline /></n-icon>
       </button>
-      <button @click="editor.chain().focus().addRowAfter().run()" title="Add Row After">
+      <button @click="editor.chain().focus().addRowAfter().run()" :title="t('editor.tableMenu.addRowAfter')">
         <n-icon><ArrowDownOutline /></n-icon>
       </button>
-      <button @click="editor.chain().focus().deleteRow().run()" title="Delete Row">
+      <button @click="editor.chain().focus().deleteRow().run()" :title="t('editor.tableMenu.deleteRow')">
         <n-icon><RemoveCircleOutline /></n-icon>
       </button>
       <div class="divider"></div>
-      <button @click="editor.chain().focus().mergeCells().run()" title="Merge Cells">
+      <button @click="editor.chain().focus().mergeCells().run()" :title="t('editor.tableMenu.mergeCells')">
         <n-icon><GitMergeOutline /></n-icon>
       </button>
-      <button @click="editor.chain().focus().splitCell().run()" title="Split Cell">
+      <button @click="editor.chain().focus().splitCell().run()" :title="t('editor.tableMenu.splitCell')">
         <n-icon><GitNetworkOutline /></n-icon>
       </button>
       <div class="divider"></div>
-      <button @click="editor.chain().focus().deleteTable().run()" title="Delete Table">
+      <button
+        class="align-btn"
+        @click="editor.chain().focus().setCellAttribute('align', 'left').run()"
+        :title="t('editor.tableMenu.alignLeft')"
+      >
+        L
+      </button>
+      <button
+        class="align-btn"
+        @click="editor.chain().focus().setCellAttribute('align', 'center').run()"
+        :title="t('editor.tableMenu.alignCenter')"
+      >
+        C
+      </button>
+      <button
+        class="align-btn"
+        @click="editor.chain().focus().setCellAttribute('align', 'right').run()"
+        :title="t('editor.tableMenu.alignRight')"
+      >
+        R
+      </button>
+      <div class="divider"></div>
+      <button @click="editor.chain().focus().deleteTable().run()" :title="t('editor.tableMenu.deleteTable')">
         <n-icon><TrashOutline /></n-icon>
       </button>
     </bubble-menu>
@@ -524,6 +846,12 @@ watch(() => props.content, (newContent) => {
       background-color: var(--color-border);
       margin: 0 0.2rem;
     }
+  }
+
+  .table-menu .align-btn {
+    min-width: 30px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
   .editor-content {
@@ -701,12 +1029,34 @@ watch(() => props.content, (newContent) => {
         border-radius: 4px;
       }
 
+      /* Page Break */
+      [data-page-break="true"] {
+        display: block;
+        margin: 18px 0;
+        border: 0;
+        border-top: 2px dashed var(--color-border);
+        position: relative;
+        height: 0;
+
+        &::before {
+          content: 'Page Break';
+          position: absolute;
+          top: -10px;
+          right: 10px;
+          padding: 0 6px;
+          font-size: 11px;
+          line-height: 1.2;
+          color: var(--color-text-secondary);
+          background: var(--color-bg-editor);
+        }
+      }
+
       /* Table Styles */
       table {
         border-collapse: collapse;
         table-layout: fixed;
         width: 100%;
-        margin: 0;
+        margin: 14px 0;
         overflow: hidden;
 
         td,
@@ -725,8 +1075,26 @@ watch(() => props.content, (newContent) => {
 
         th {
           font-weight: bold;
-          text-align: left;
           background-color: var(--color-bg-table-th);
+        }
+
+        th:not([align]) {
+          text-align: left;
+        }
+
+        th[align="left"],
+        td[align="left"] {
+          text-align: left;
+        }
+
+        th[align="center"],
+        td[align="center"] {
+          text-align: center;
+        }
+
+        th[align="right"],
+        td[align="right"] {
+          text-align: right;
         }
 
         .selectedCell:after {
@@ -752,6 +1120,35 @@ watch(() => props.content, (newContent) => {
         }
       }
     }
+  }
+}
+
+@media print {
+  .editor-wrapper,
+  .editor-wrapper .editor-content,
+  .editor-wrapper .editor-content .ProseMirror {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .editor-wrapper .ProseMirror [data-page-break="true"] {
+    display: block !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    visibility: hidden !important;
+  }
+
+  .editor-wrapper .ProseMirror [data-page-break="true"]::before {
+    content: '';
+  }
+
+  .editor-wrapper .ProseMirror [data-page-break="true"] + * {
+    break-before: page !important;
+    page-break-before: always !important;
   }
 }
 </style>

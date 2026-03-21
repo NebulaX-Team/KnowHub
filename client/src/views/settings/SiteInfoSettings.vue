@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { 
   NForm, 
   NFormItem, 
@@ -15,40 +16,67 @@ import { systemApi } from '@/api/system'
 
 const route = useRoute()
 const message = useMessage()
+const { t } = useI18n()
 const formRef = ref<FormInst | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 
-const title = computed(() => route.meta.title as string || 'Site Information')
+const title = computed(() => {
+  const titleKey = route.meta.titleKey as string | undefined
+  if (titleKey) {
+    return t(titleKey)
+  }
+  return (route.meta.title as string) || t('settingsPage.siteInfo.defaultTitle')
+})
 
 const formValue = ref({
-  title: '',
-  description: ''
+  titleZh: '',
+  titleEn: '',
+  descriptionZh: '',
+  descriptionEn: ''
 })
 
 // 表单验证规则
-const rules = {
-  title: [
-    { required: true, message: 'Please enter the website title', trigger: ['blur', 'input'] },
-    { max: 100, message: 'The website title cannot exceed 100 characters', trigger: ['blur', 'input'] }
+const rules = computed(() => ({
+  titleZh: [
+    { required: true, message: t('settingsPage.siteInfo.validation.titleZhRequired'), trigger: ['blur', 'input'] },
+    { max: 100, message: t('settingsPage.siteInfo.validation.titleMax'), trigger: ['blur', 'input'] }
   ],
-  description: [
-    { required: true, message: 'Please enter the website description', trigger: ['blur', 'input'] },
-    { max: 500, message: 'The website description cannot exceed 500 characters', trigger: ['blur', 'input'] }
+  titleEn: [
+    { required: true, message: t('settingsPage.siteInfo.validation.titleEnRequired'), trigger: ['blur', 'input'] },
+    { max: 100, message: t('settingsPage.siteInfo.validation.titleMax'), trigger: ['blur', 'input'] }
+  ],
+  descriptionZh: [
+    { required: true, message: t('settingsPage.siteInfo.validation.descriptionZhRequired'), trigger: ['blur', 'input'] },
+    { max: 500, message: t('settingsPage.siteInfo.validation.descriptionMax'), trigger: ['blur', 'input'] }
+  ],
+  descriptionEn: [
+    { required: true, message: t('settingsPage.siteInfo.validation.descriptionEnRequired'), trigger: ['blur', 'input'] },
+    { max: 500, message: t('settingsPage.siteInfo.validation.descriptionMax'), trigger: ['blur', 'input'] }
   ]
-}
+}))
 
 // 获取网站信息
 async function loadSiteInfo() {
   try {
     loading.value = true
     const response = await systemApi.getSiteInfo()
+    const titleI18n = response.data.titleI18n || {
+      'zh-CN': response.data.title || '',
+      'en-US': response.data.title || ''
+    }
+    const descriptionI18n = response.data.descriptionI18n || {
+      'zh-CN': response.data.description || '',
+      'en-US': response.data.description || ''
+    }
     formValue.value = {
-      title: response.data.title || '',
-      description: response.data.description || ''
+      titleZh: titleI18n['zh-CN'] || '',
+      titleEn: titleI18n['en-US'] || '',
+      descriptionZh: descriptionI18n['zh-CN'] || '',
+      descriptionEn: descriptionI18n['en-US'] || ''
     }
   } catch (error) {
-    message.error('Failed to load site information')
+    message.error(t('settingsPage.siteInfo.messages.loadFailed'))
     console.error('Failed to load site info:', error)
   } finally {
     loading.value = false
@@ -61,16 +89,35 @@ async function handleSave() {
     await formRef.value?.validate()
     saving.value = true
     
-    const response = await systemApi.updateSiteInfo(formValue.value)
-    
-    formValue.value = {
-      title: response.data.title,
-      description: response.data.description
+    const response = await systemApi.updateSiteInfo({
+      titleI18n: {
+        'zh-CN': formValue.value.titleZh,
+        'en-US': formValue.value.titleEn
+      },
+      descriptionI18n: {
+        'zh-CN': formValue.value.descriptionZh,
+        'en-US': formValue.value.descriptionEn
+      }
+    })
+    const titleI18n = response.data.titleI18n || {
+      'zh-CN': response.data.title || '',
+      'en-US': response.data.title || ''
+    }
+    const descriptionI18n = response.data.descriptionI18n || {
+      'zh-CN': response.data.description || '',
+      'en-US': response.data.description || ''
     }
     
-    message.success('Site information updated successfully')
+    formValue.value = {
+      titleZh: titleI18n['zh-CN'] || '',
+      titleEn: titleI18n['en-US'] || '',
+      descriptionZh: descriptionI18n['zh-CN'] || '',
+      descriptionEn: descriptionI18n['en-US'] || ''
+    }
+    
+    message.success(t('settingsPage.siteInfo.messages.saveSuccess'))
   } catch (error) {
-    message.error('Save failed, please check your input')
+    message.error(t('settingsPage.siteInfo.messages.saveFailed'))
     console.error('Failed to save site info:', error)
   } finally {
     saving.value = false
@@ -80,7 +127,7 @@ async function handleSave() {
 // 重置表单
 function handleReset() {
   loadSiteInfo()
-  message.info('Reset to last saved values')
+  message.info(t('settingsPage.siteInfo.messages.resetSuccess'))
 }
 
 onMounted(() => {
@@ -105,33 +152,67 @@ onMounted(() => {
         require-mark-placement="right-hanging"
         class="form-wrapper"
       >
-        <n-form-item label="Site Title" path="title">
-          <n-input
-            v-model:value="formValue.title"
-            placeholder="Enter your site title"
-            :maxlength="100"
-            show-count
-            clearable
-          />
-        </n-form-item>
+        <div class="form-columns">
+          <div class="form-column">
+            <n-form-item :label="t('settingsPage.siteInfo.siteTitleZh')" path="titleZh">
+              <n-input
+                v-model:value="formValue.titleZh"
+                :placeholder="t('settingsPage.siteInfo.siteTitleZhPlaceholder')"
+                :maxlength="100"
+                show-count
+                clearable
+              />
+            </n-form-item>
 
-        <n-form-item label="Site Description" path="description">
-          <n-input
-            v-model:value="formValue.description"
-            placeholder="Enter a brief description of your site"
-            type="textarea"
-            :maxlength="500"
-            :autosize="{
-              minRows: 4,
-              maxRows: 8
-            }"
-            show-count
-            clearable
-          />
-          <template #feedback>
-            This description will appear in search engine results.
-          </template>
-        </n-form-item>
+            <n-form-item :label="t('settingsPage.siteInfo.siteDescriptionZh')" path="descriptionZh">
+              <n-input
+                v-model:value="formValue.descriptionZh"
+                :placeholder="t('settingsPage.siteInfo.siteDescriptionZhPlaceholder')"
+                type="textarea"
+                :maxlength="500"
+                :autosize="{
+                  minRows: 4,
+                  maxRows: 8
+                }"
+                show-count
+                clearable
+              />
+              <template #feedback>
+                {{ t('settingsPage.siteInfo.descriptionFeedback') }}
+              </template>
+            </n-form-item>
+          </div>
+
+          <div class="form-column">
+            <n-form-item :label="t('settingsPage.siteInfo.siteTitleEn')" path="titleEn">
+              <n-input
+                v-model:value="formValue.titleEn"
+                :placeholder="t('settingsPage.siteInfo.siteTitleEnPlaceholder')"
+                :maxlength="100"
+                show-count
+                clearable
+              />
+            </n-form-item>
+
+            <n-form-item :label="t('settingsPage.siteInfo.siteDescriptionEn')" path="descriptionEn">
+              <n-input
+                v-model:value="formValue.descriptionEn"
+                :placeholder="t('settingsPage.siteInfo.siteDescriptionEnPlaceholder')"
+                type="textarea"
+                :maxlength="500"
+                :autosize="{
+                  minRows: 4,
+                  maxRows: 8
+                }"
+                show-count
+                clearable
+              />
+              <template #feedback>
+                {{ t('settingsPage.siteInfo.descriptionFeedback') }}
+              </template>
+            </n-form-item>
+          </div>
+        </div>
 
         <div class="form-actions">
           <n-space>
@@ -142,14 +223,14 @@ onMounted(() => {
               @click="handleSave"
               size="large"
             >
-              {{ saving ? 'Saving...' : 'Save Changes' }}
+              {{ saving ? t('settingsPage.siteInfo.saving') : t('settingsPage.siteInfo.saveChanges') }}
             </n-button>
             <n-button
               :disabled="loading || saving"
               @click="handleReset"
               size="large"
             >
-              Reset
+              {{ t('settingsPage.siteInfo.reset') }}
             </n-button>
           </n-space>
         </div>
@@ -161,7 +242,7 @@ onMounted(() => {
 <style scoped lang="scss">
 .settings-content {
   padding: 24px;
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
 
   .settings-header {
@@ -175,12 +256,33 @@ onMounted(() => {
 }
 
 .form-wrapper {
-  max-width: 600px;
+  max-width: 100%;
+}
+
+.form-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.form-column {
+  min-width: 0;
 }
 
 .form-actions {
   margin-top: 24px;
   display: flex;
   justify-content: flex-start;
+}
+
+@media (max-width: 900px) {
+  .settings-content {
+    padding: 16px;
+  }
+
+  .form-columns {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 </style>

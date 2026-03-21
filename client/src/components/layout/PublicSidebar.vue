@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { h, computed, ref } from 'vue'
+import { h, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NLayoutSider, NTree, NText, NIcon, NButton } from 'naive-ui'
 import { useRouter } from 'vue-router'
-import { BookOutline, ChevronBackOutline, ChevronForwardOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5'
+import { BookOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5'
 import { useSystemStore } from '@/stores/system'
 import { useTheme } from '@/composables/useTheme'
 import type { Page as RawPage, Library } from '@/types'
@@ -10,90 +11,85 @@ import type { TreeOption } from 'naive-ui'
 
 const systemStore = useSystemStore()
 const { isDark, toggleTheme } = useTheme()
-const collapsed = ref(false)
-
-// Extend Page type to include optional children for tree rendering
-type Page = RawPage & { children?: Page[] }
+const { t } = useI18n()
 
 const props = defineProps<{
-  tree: Page[]
+  tree: Array<RawPage & { children?: RawPage[] }>
   currentId?: string
   library?: Library | null
   isMobile?: boolean
 }>()
 
-const componentType = computed(() => {
-  return props.isMobile ? 'div' : NLayoutSider
-})
+type Page = RawPage & { children?: Page[] }
+
+const componentType = computed(() => (props.isMobile ? 'div' : NLayoutSider))
 
 const bindProps = computed(() => {
   if (props.isMobile) {
     return {
-      class: 'public-sidebar mobile-sidebar'
+      class: ['public-sidebar', 'mobile-sidebar', 'is-mobile'],
     }
   }
+
   return {
     bordered: true,
-    width: collapsed.value ? 64 : 280,
-    'collapsed-width': 64,
-    'native-scrollbar': false,
+    width: 292,
+    'native-scrollbar': true,
     class: 'public-sidebar',
-    collapsed: collapsed.value,
-    'show-trigger': false
+    'show-trigger': false,
   }
 })
 
 const router = useRouter()
 
-// Recursively map Page[] to TreeOption[] for NTree compatibility
-const mapToTreeOptions = (nodes: Page[]): TreeOption[] => {
-  return nodes.map(node => {
-    const option: TreeOption = {
-      key: node.id,
-      id: node.id,
-      title: node.title,
-      icon: node.icon,
-      publicSlug: node.publicSlug,
-      children: node.children && node.children.length > 0 ? mapToTreeOptions(node.children) : undefined,
-      // Add any other fields needed for rendering or selection
-    }
-    return option
-  })
-}
+const mapToTreeOptions = (nodes: Page[]): TreeOption[] => nodes.map((node) => ({
+  key: node.id,
+  id: node.id,
+  title: node.title,
+  icon: node.icon,
+  publicSlug: node.publicSlug,
+  children: node.children && node.children.length > 0 ? mapToTreeOptions(node.children) : undefined,
+}))
 
-const processedTree = computed<TreeOption[]>(() => mapToTreeOptions(props.tree))
+const processedTree = computed<TreeOption[]>(() => mapToTreeOptions(props.tree as Page[]))
+
+const countPages = (nodes: Page[]): number => nodes.reduce((total, node) => {
+  const childrenCount = node.children ? countPages(node.children) : 0
+  return total + 1 + childrenCount
+}, 0)
+
+const pageCount = computed(() => countPages(props.tree as Page[]))
+const pageCountLabel = computed(() => t('publicSidebar.total', { count: pageCount.value }))
 
 function handleSelect(keys: Array<string | number>) {
-  if (keys.length) {
-    const findNode = (nodes: Page[], key: string): Page | undefined => {
-      for (const node of nodes) {
-        if (node.id === key) return node
-        if (node.children) {
-          const found = findNode(node.children, key)
-          if (found) return found
-        }
+  if (!keys.length) return
+
+  const findNode = (nodes: Page[], key: string): Page | undefined => {
+    for (const node of nodes) {
+      if (node.id === key) return node
+      if (node.children) {
+        const found = findNode(node.children, key)
+        if (found) return found
       }
     }
-    
-    // Use original tree for lookup as processedTree is just for display
-    const node = findNode(props.tree, keys[0] as string)
-    if (node) {
-      const slug = node.publicSlug || node.id
-      router.push(`/public/pages/${slug}`)
-    }
+    return undefined
   }
+
+  const node = findNode(props.tree as Page[], keys[0] as string)
+  if (!node) return
+
+  const slug = node.publicSlug || node.id
+  router.push(`/public/pages/${slug}`)
 }
 
 function goToLibrary() {
-  if (props.library) {
-    const slug = props.library.publicSlug || props.library.id
-    router.push(`/public/libraries/${slug}`)
-  }
+  if (!props.library) return
+  const slug = props.library.publicSlug || props.library.id
+  router.push(`/public/libraries/${slug}`)
 }
 
-const renderLabel = ({ option }: { option: TreeOption }) => {
-  return h(NText, { depth: 1, style: 'font-size: 14px;' }, { default: () => option.title as string })
-}
+const renderLabel = ({ option }: { option: TreeOption }) =>
+  h(NText, { depth: 1, style: 'font-size: 13px;' }, { default: () => option.title as string })
 
 const renderPrefix = ({ option }: { option: TreeOption }) => {
   const page = option as unknown as Page
@@ -106,235 +102,247 @@ const renderPrefix = ({ option }: { option: TreeOption }) => {
 
 <template>
   <component :is="componentType" v-bind="bindProps">
-    <div class="sidebar-content" style="padding-bottom: 60px;">
-      <!-- Library Info with Collapse Toggle -->
-      <div v-if="library" class="library-info">
-        <div 
-          class="library-card" 
-          :class="{ active: currentId === library.id, collapsed: collapsed && !isMobile }"
-          @click="goToLibrary"
-        >
-          <div class="library-icon-wrapper">
-            <span v-if="library.icon" class="emoji-icon">{{ library.icon }}</span>
-            <NIcon v-else size="20">
-              <BookOutline />
-            </NIcon>
-          </div>
-          <div v-if="!collapsed || isMobile" class="library-details">
-            <span class="library-name">{{ library.title }}</span>
-          </div>
-          <NButton
-            v-if="(!collapsed || isMobile) && !isMobile"
-            text
-            size="small"
-            class="collapse-btn"
-            @click.stop="collapsed = !collapsed"
-          >
-            <template #icon>
-              <NIcon><ChevronBackOutline /></NIcon>
-            </template>
-          </NButton>
+    <div class="sidebar-shell">
+      <button
+        type="button"
+        class="library-card"
+        :class="{ clickable: !!library }"
+        :title="t('publicSidebar.openLibrary')"
+        @click="goToLibrary"
+      >
+        <span class="library-avatar">
+          <span v-if="library?.icon" class="emoji-icon">{{ library.icon }}</span>
+          <NIcon v-else :size="20"><BookOutline /></NIcon>
+        </span>
+        <span class="library-info">
+          <strong class="library-name">{{ library?.title || t('publicLayout.defaultTitle') }}</strong>
+          <small class="library-meta">{{ pageCountLabel }}</small>
+        </span>
+      </button>
+
+      <section class="sidebar-main">
+        <div class="section-header">
+          <span class="section-title">{{ t('publicSidebar.pages') }}</span>
+          <span class="section-count">{{ pageCountLabel }}</span>
         </div>
-        
-        <!-- Expand button when collapsed -->
-        <NButton
-          v-if="collapsed && !isMobile"
-          text
-          size="small"
-          class="expand-btn"
-          @click="collapsed = false"
-        >
+
+        <div class="tree-container">
+          <NTree
+            block-line
+            :data="processedTree"
+            key-field="id"
+            label-field="title"
+            children-field="children"
+            :selected-keys="currentId ? [currentId] : []"
+            @update:selected-keys="handleSelect"
+            :render-label="renderLabel"
+            :render-prefix="renderPrefix"
+            default-expand-all
+            class="custom-tree"
+          />
+
+          <div v-if="processedTree.length === 0" class="tree-empty">
+            {{ t('publicSidebar.empty') }}
+          </div>
+        </div>
+      </section>
+
+      <footer class="sidebar-footer">
+        <NButton quaternary circle size="small" class="theme-button" @click="toggleTheme">
           <template #icon>
-            <NIcon><ChevronForwardOutline /></NIcon>
+            <NIcon :size="16"><MoonOutline v-if="!isDark" /><SunnyOutline v-else /></NIcon>
           </template>
         </NButton>
-      </div>
-      
-      <!-- Pages Tree -->
-      <div v-if="!collapsed || isMobile" class="tree-container">
-        <div class="tree-label">PAGES</div>
-        <NTree
-          block-line
-          :data="processedTree"
-          key-field="id"
-          label-field="title"
-          children-field="children"
-          :selected-keys="currentId ? [currentId] : []"
-          @update:selected-keys="handleSelect"
-          :render-label="renderLabel"
-          :render-prefix="renderPrefix"
-          default-expand-all
-          class="custom-tree"
-        />
-      </div>
-    </div>
-    
-    <!-- Footer Section (Fixed at absolute bottom) -->
-    <div class="sidebar-footer" v-if="!collapsed || isMobile">
-      <div class="footer-content">
-        <div class="footer-top">
-          <NText depth="3" style="font-size: 12px">
-            {{ systemStore.siteTitle }}
+
+        <div class="footer-text">
+          <NText depth="3" class="footer-title">{{ systemStore.siteTitle }}</NText>
+          <NText depth="3" class="footer-meta-text">
+            {{ t('publicSidebar.poweredBy') }}
+            <a href="https://github.com/NebulaX-Team/KnowHub" target="_blank" rel="noopener noreferrer">
+              {{ t('common.appName') }}
+            </a>
           </NText>
-          <NButton quaternary circle size="small" @click="toggleTheme">
-            <template #icon>
-              <NIcon :size="16"><MoonOutline v-if="!isDark" /><SunnyOutline v-else /></NIcon>
-            </template>
-          </NButton>
         </div>
-        <NText depth="3" style="font-size: 11px; margin-top: 4px">
-          Powered by 
-          <a 
-            href="https://github.com/LunaDeerTech/Schema" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            style="color: var(--n-primary-color); text-decoration: none;"
-          >
-            Schema
-          </a>
-        </NText>
-      </div>
+      </footer>
     </div>
   </component>
 </template>
 
 <style scoped lang="scss">
 .public-sidebar {
-  background-color: var(--color-bg-sidebar);
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: var(--color-bg-sidebar);
+}
+
+.public-sidebar :deep(.n-layout-sider-scroll-container),
+.public-sidebar :deep(.n-layout-sider-children) {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  position: relative;
 }
 
-.sidebar-content {
-  padding: 16px 12px;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.library-info {
-  margin-bottom: 24px;
-  flex-shrink: 0;
+.sidebar-shell {
+  height: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 72px;
 }
 
 .library-card {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border-light);
-  box-shadow: var(--shadow-card);
-  position: relative;
-  
-  &.collapsed {
-    justify-content: center;
-    padding: 12px;
-  }
-  
-  .collapse-btn {
-    margin-left: auto;
-    opacity: 0;
-    transition: opacity 0.2s;
+  gap: 10px;
+  color: inherit;
+  text-align: left;
+  transition: background-color 0.2s ease;
+
+  &.clickable {
+    cursor: pointer;
   }
 
   &:hover {
-    .collapse-btn {
-      opacity: 1;
-    }
-    background-color: var(--color-bg-secondary);
-    border-color: var(--n-primary-color);
-    box-shadow: var(--shadow-card);
-    transform: translateY(-1px);
-  }
-
-  &.active {
-    border-color: var(--n-primary-color);
-    background-color: rgba(24, 160, 88, 0.05);
+    background: var(--color-bg-hover);
   }
 }
 
-.expand-btn {
-  margin-top: 8px;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.library-icon-wrapper {
-  width: 20px;
-  height: 20px;
-  display: flex;
+.library-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-bg-hover);
-  border-radius: 8px;
-  color: var(--color-text-muted);
-  
-  .emoji-icon {
-    font-size: 20px;
-    line-height: 1;
-  }
+  flex-shrink: 0;
+  background: var(--color-bg-hover);
 }
 
-.library-details {
+.emoji-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.library-info {
+  min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+.library-name {
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
   overflow: hidden;
-  
-  .library-name {
-    font-weight: 600;
-    font-size: 15px;
-    color: var(--n-text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .library-meta {
-    font-size: 12px;
-    color: var(--n-text-color-3);
-  }
+  text-overflow: ellipsis;
+}
+
+.library-meta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.sidebar-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 8px 6px;
+  border-bottom: none;
+}
+
+.section-title {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+}
+
+.section-count {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
 }
 
 .tree-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  
-  .tree-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--n-text-color-3);
-    margin-bottom: 8px;
-    padding-left: 8px;
-    letter-spacing: 0.05em;
-  }
+  padding: 0 2px 6px;
+}
+
+.tree-empty {
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
 }
 
 .sidebar-footer {
+  border-top: none;
+  padding: 8px 4px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: var(--color-bg-sidebar);
-  padding: 0 16px 16px;
-  border-top: 1px solid var(--n-border-color);
-  
-  .footer-content {
-    padding: 8px 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+}
 
-    .footer-top {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+.theme-button {
+  flex-shrink: 0;
+}
+
+.footer-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.footer-title {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.footer-meta-text {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  a {
+    color: var(--n-primary-color);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
     }
   }
 }
@@ -342,19 +350,19 @@ const renderPrefix = ({ option }: { option: TreeOption }) => {
 :deep(.n-tree) {
   .n-tree-node {
     border-radius: 6px;
-    margin-bottom: 2px;
-    padding: 4px 0;
-    
+    margin-bottom: 1px;
+    padding: 4px 3px;
+
     &:hover {
-      background-color: var(--color-bg-hover);
+      background: var(--color-bg-hover);
     }
-    
+
     &.n-tree-node--selected {
-      background-color: rgba(24, 160, 88, 0.1);
-      
+      background: color-mix(in srgb, var(--n-primary-color) 14%, transparent);
+
       .n-tree-node-content__text {
         color: var(--n-primary-color);
-        font-weight: 500;
+        font-weight: 600;
       }
     }
   }
@@ -367,5 +375,19 @@ const renderPrefix = ({ option }: { option: TreeOption }) => {
   align-items: center;
   justify-content: center;
   line-height: 1;
+}
+
+@media (max-width: 1023px) {
+  .public-sidebar.is-mobile {
+    height: 100%;
+  }
+
+  .sidebar-shell {
+    padding: 10px 10px 72px;
+  }
+
+  .library-name {
+    font-size: 17px;
+  }
 }
 </style>

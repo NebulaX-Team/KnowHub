@@ -7,7 +7,7 @@ export class HealthController {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      service: 'schema-api',
+      service: 'knowhub-api',
     };
   }
 }

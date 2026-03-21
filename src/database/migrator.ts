@@ -61,7 +61,7 @@ export function runMigrations(databaseService: DatabaseService) {
   if (appliedCount > 0) {
     console.log(`Successfully applied ${appliedCount} migrations`);
   } else {
-    console.log('Database schema is up to date');
+    console.log('Database structure is up to date');
   }
 }
 

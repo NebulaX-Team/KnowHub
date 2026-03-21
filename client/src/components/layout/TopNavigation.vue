@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, h, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { 
   NLayoutHeader, 
   NInput, 
@@ -30,6 +31,7 @@ import {
 import { useUserStore } from '@/stores/user'
 import { useSystemStore } from '@/stores/system'
 import { useTheme } from '@/composables/useTheme'
+import { useLocale } from '@/composables/useLocale'
 
 const props = defineProps<{
   collapsed: boolean
@@ -45,6 +47,8 @@ const route = useRoute()
 const userStore = useUserStore()
 const systemStore = useSystemStore()
 const { isDark, toggleTheme } = useTheme()
+const { t } = useI18n()
+const { locale, setLocale } = useLocale()
 
 const showSearch = ref(false)
 const searchText = ref('')
@@ -58,12 +62,12 @@ const openHelp = () => {
 const userOptions = computed(() => {
   const options = [
     {
-      label: 'Profile Settings',
+      label: t('topNav.profileSettings'),
       key: 'profile',
       icon: () => h(NIcon, null, { default: () => h(PersonIcon) })
     },
     {
-      label: 'Your Contents',
+      label: t('topNav.yourContent'),
       key: 'content',
       icon: () => h(NIcon, null, { default: () => h(MenuIcon) })
     }
@@ -72,7 +76,7 @@ const userOptions = computed(() => {
   // Only show Settings option for admin users
   if (userStore.isAdmin) {
     options.push({
-      label: 'Settings',
+      label: t('topNav.settings'),
       key: 'settings',
       icon: () => h(NIcon, null, { default: () => h(SettingsIcon) })
     })
@@ -84,7 +88,7 @@ const userOptions = computed(() => {
       key: 'd1'
     } as any,
     {
-      label: 'Logout',
+      label: t('topNav.logout'),
       key: 'logout',
       icon: () => h(NIcon, null, { default: () => h(LogOutIcon) })
     }
@@ -92,6 +96,19 @@ const userOptions = computed(() => {
 
   return options
 })
+
+const languageOptions = computed(() => [
+  { label: t('locale.zhCN'), key: 'zh-CN' },
+  { label: t('locale.enUS'), key: 'en-US' },
+])
+
+const currentLocaleShort = computed(() => (locale.value === 'zh-CN' ? '中' : 'EN'))
+
+const handleLanguageSelect = (key: string) => {
+  if (key === 'zh-CN' || key === 'en-US') {
+    setLocale(key)
+  }
+}
 
 const handleUserSelect = (key: string) => {
   if (key === 'logout') {
@@ -124,6 +141,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  loadRecentSearches()
 })
 
 onUnmounted(() => {
@@ -137,12 +155,59 @@ const avatarSrc = computed(() => {
   return url
 })
 
-// Mock data for search panel
-const recentSearches = ['React Hooks notes', 'Project review 2024', 'Learning plan']
-const searchResults = [
-  { title: 'React Hooks Best Practice', path: 'Tech Library > Frontend > React' },
-  { title: 'Project Alpha Review', path: 'Work Library > Projects > 2024' }
-]
+const RECENT_SEARCHES_KEY = 'knowhub_recent_searches'
+const recentSearches = ref<string[]>([])
+
+const loadRecentSearches = () => {
+  try {
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY)
+    if (!raw) {
+      recentSearches.value = []
+      return
+    }
+    const parsed = JSON.parse(raw)
+    recentSearches.value = Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    recentSearches.value = []
+  }
+}
+
+const saveRecentSearches = (items: string[]) => {
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(items))
+}
+
+const addRecentSearch = (value: string) => {
+  const query = value.trim()
+  if (!query) return
+  const next = [query, ...recentSearches.value.filter((item) => item !== query)].slice(0, 8)
+  recentSearches.value = next
+  saveRecentSearches(next)
+}
+
+const handleSearchSubmit = () => {
+  addRecentSearch(searchText.value)
+}
+
+const handleRecentSearchClick = (value: string) => {
+  searchText.value = value
+}
+
+const searchResults = computed(() => {
+  const query = searchText.value.trim().toLowerCase()
+  if (!query) return []
+  return recentSearches.value
+    .filter((item) => item.toLowerCase().includes(query))
+    .map((item) => ({
+      title: item,
+      path: t('topNav.searchHistoryPath'),
+    }))
+})
+
+const showSidebarToggle = computed(() => {
+  if (route.name === 'Home') return false
+  if (props.isMobile) return true
+  return route.path.startsWith('/settings')
+})
 </script>
 
 <template>
@@ -153,7 +218,7 @@ const searchResults = [
         circle
         class="sidebar-toggle"
         @click="toggleSidebar"
-        v-if="route.name !== 'Home'"
+        v-if="showSidebarToggle"
       >
         <template #icon>
           <n-icon :component="MenuIcon" />
@@ -165,13 +230,18 @@ const searchResults = [
     <div class="nav-center">
       <div class="search-trigger" @click="openSearch" :class="{ 'mobile-search': isMobile }">
         <n-icon :component="SearchIcon" class="search-icon" />
-        <span class="search-placeholder" v-if="!isMobile">Search pages, tags, content...</span>
+        <span class="search-placeholder" v-if="!isMobile">{{ t('topNav.searchPlaceholder') }}</span>
         <span class="search-shortcut" v-if="!isMobile">Ctrl+K</span>
       </div>
     </div>
 
     <div class="nav-right">
-      <n-button quaternary circle class="icon-btn" @click="toggleTheme" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+      <n-dropdown :options="languageOptions" @select="handleLanguageSelect">
+        <n-button quaternary class="lang-btn" :title="t('locale.switchLanguage')">
+          {{ currentLocaleShort }}
+        </n-button>
+      </n-dropdown>
+      <n-button quaternary circle class="icon-btn" @click="toggleTheme" :title="isDark ? t('topNav.switchToLight') : t('topNav.switchToDark')">
         <template #icon>
           <n-icon :component="isDark ? SunnyIcon : MoonIcon" />
         </template>
@@ -215,10 +285,11 @@ const searchResults = [
         <template #header>
           <n-input
             v-model:value="searchText"
-            placeholder="Search pages, tags, content..."
+            :placeholder="t('topNav.searchInputPlaceholder')"
             size="large"
             clearable
             autofocus
+            @keydown.enter="handleSearchSubmit"
           >
             <template #prefix>
               <n-icon :component="SearchIcon" />
@@ -228,28 +299,29 @@ const searchResults = [
 
         <div class="search-content">
           <div v-if="!searchText" class="recent-searches">
-            <n-text depth="3" class="section-title">Recent Searches</n-text>
-            <n-list hoverable clickable>
-              <n-list-item v-for="item in recentSearches" :key="item">
+            <n-text depth="3" class="section-title">{{ t('topNav.recentSearches') }}</n-text>
+            <n-list v-if="recentSearches.length > 0" hoverable clickable>
+              <n-list-item v-for="item in recentSearches" :key="item" @click="handleRecentSearchClick(item)">
                 <n-space align="center">
                   <n-icon :component="SearchIcon" depth="3" />
                   {{ item }}
                 </n-space>
               </n-list-item>
             </n-list>
+            <n-text v-else depth="3">{{ t('topNav.noRecentSearches') }}</n-text>
             
             <div class="filters" style="margin-top: 20px;">
                <n-space>
-                 <n-tag checkable>Library: All</n-tag>
-                 <n-tag checkable>Tags: All</n-tag>
-                 <n-tag checkable>Time: All</n-tag>
+                 <n-tag checkable>{{ t('topNav.filterLibrary') }}</n-tag>
+                 <n-tag checkable>{{ t('topNav.filterTags') }}</n-tag>
+                 <n-tag checkable>{{ t('topNav.filterTime') }}</n-tag>
                </n-space>
             </div>
           </div>
 
           <div v-else class="search-results">
-            <n-text depth="3" class="section-title">Search Results</n-text>
-            <n-list hoverable clickable>
+            <n-text depth="3" class="section-title">{{ t('topNav.searchResults') }}</n-text>
+            <n-list v-if="searchResults.length > 0" hoverable clickable>
               <n-list-item v-for="res in searchResults" :key="res.title">
                 <div class="result-item">
                   <div class="result-title">{{ res.title }}</div>
@@ -257,6 +329,7 @@ const searchResults = [
                 </div>
               </n-list-item>
             </n-list>
+            <n-text v-else depth="3">{{ t('topNav.noSearchResults') }}</n-text>
           </div>
         </div>
       </n-card>
@@ -266,7 +339,7 @@ const searchResults = [
     <n-modal v-model:show="showHelp">
       <n-card
         style="width: 600px; max-width: 90vw;"
-        title="About Schema"
+        :title="t('topNav.aboutTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
@@ -274,33 +347,43 @@ const searchResults = [
       >
         <n-space vertical size="large">
           <div>
-            <n-text strong style="font-size: 18px;">Schema</n-text>
-            <p>A personal knowledge management system designed for long-term knowledge accumulation and structured thinking.</p>
+            <n-text strong style="font-size: 18px;">{{ t('common.appName') }}</n-text>
+            <p>{{ t('topNav.aboutDescription') }}</p>
           </div>
-          
+
           <div>
-            <n-text strong>Version</n-text>
+            <n-text strong>{{ t('topNav.version') }}</n-text>
             <p>v1.0.0</p>
           </div>
 
           <div>
-            <n-text strong>Resources</n-text>
-            <n-list>
+            <n-text strong>{{ t('topNav.resources') }}</n-text>
+            <n-list :bordered="false" class="about-resource-list">
               <n-list-item>
-                <n-a href="https://github.com/LunaDeerTech/Schema" target="_blank">GitHub Repository</n-a>
+                <div class="about-resource-row">
+                  <n-a href="https://github.com/NebulaX-Team/KnowHub" target="_blank" rel="noreferrer noopener">
+                    {{ t('topNav.github') }}
+                  </n-a>
+                  <n-text depth="3" class="about-resource-host">github.com</n-text>
+                </div>
               </n-list-item>
               <n-list-item>
-                <n-a href="https://github.com/LunaDeerTech/Schema" target="_blank">Documentation</n-a>
+                <div class="about-resource-row">
+                  <n-a href="https://github.com/NebulaX-Team/KnowHub#readme" target="_blank" rel="noreferrer noopener">
+                    {{ t('topNav.docs') }}
+                  </n-a>
+                  <n-text depth="3" class="about-resource-host">README</n-text>
+                </div>
               </n-list-item>
             </n-list>
           </div>
 
           <div>
-            <n-text strong>Keyboard Shortcuts</n-text>
+            <n-text strong>{{ t('topNav.shortcuts') }}</n-text>
             <n-list>
               <n-list-item>
                 <n-space justify="space-between">
-                  <span>Global Search</span>
+                  <span>{{ t('topNav.globalSearch') }}</span>
                   <n-tag size="small">Ctrl + K</n-tag>
                 </n-space>
               </n-list-item>
@@ -387,6 +470,11 @@ const searchResults = [
   gap: 8px;
   min-width: 200px;
   justify-content: flex-end;
+
+  .lang-btn {
+    min-width: 44px;
+    font-weight: 600;
+  }
   
   .user-profile {
     cursor: pointer;
@@ -417,5 +505,21 @@ const searchResults = [
     font-size: 12px;
     color: var(--color-text-icon);
   }
+}
+
+.about-resource-list {
+  margin-top: 8px;
+}
+
+.about-resource-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.about-resource-host {
+  font-size: 12px;
+  white-space: nowrap;
 }
 </style>

@@ -1,20 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, h, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  NGrid, 
-  NGi, 
-  NCard, 
-  NButton, 
-  NIcon, 
-  NList, 
-  NListItem, 
-  NThing, 
-  NTag, 
-  NCheckbox, 
-  NSpace, 
-  NText, 
-  NH1, 
+import { useI18n } from 'vue-i18n'
+import {
+  NGrid,
+  NGi,
+  NCard,
+  NButton,
+  NIcon,
+  NList,
+  NListItem,
+  NThing,
+  NTag,
+  NCheckbox,
+  NSpace,
+  NText,
+  NH1,
   NH2,
   NEllipsis,
   NSkeleton,
@@ -28,7 +29,7 @@ import {
   NLayoutSider,
   NDropdown
 } from 'naive-ui'
-import { 
+import {
   AddOutline as AddIcon,
   SearchOutline as SearchIcon,
   TimeOutline as TimeIcon,
@@ -49,13 +50,14 @@ const router = useRouter()
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 const message = useMessage()
+const { t, locale } = useI18n()
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('sm')
 const isTablet = breakpoints.smaller('lg')
 
 // View Mode
 type ViewMode = 'card' | 'list' | 'compact'
-const STORAGE_KEY = 'schema_library_view_mode'
+const STORAGE_KEY = 'knowhub_library_view_mode'
 const savedViewMode = localStorage.getItem(STORAGE_KEY) as ViewMode | null
 const viewMode = ref<ViewMode>((savedViewMode && ['card', 'list', 'compact'].includes(savedViewMode)) ? savedViewMode : 'card')
 const setViewMode = (mode: ViewMode) => {
@@ -88,12 +90,12 @@ const libraryToDelete = ref<string | null>(null)
 const deleteLibraryLoading = ref(false)
 
 // Greeting Logic
-const greetingPhrase = ref('Good Morning')
+const greetingPhrase = ref(t('home.greetings.morning1'))
 
 const updateGreeting = () => {
   const hour = new Date().getHours()
   let timePeriod = ''
-  
+
   if (hour >= 5 && hour < 12) timePeriod = 'morning'
   else if (hour >= 12 && hour < 18) timePeriod = 'afternoon'
   else if (hour >= 18 && hour < 23) timePeriod = 'evening'
@@ -101,28 +103,28 @@ const updateGreeting = () => {
 
   const greetings: Record<string, string[]> = {
     morning: [
-      'Good Morning',
-      'Rise and shine',
-      'Wonderful morning',
-      'Ready for the day'
+      t('home.greetings.morning1'),
+      t('home.greetings.morning2'),
+      t('home.greetings.morning3'),
+      t('home.greetings.morning4')
     ],
     afternoon: [
-      'Good Afternoon',
-      'Hope your day is going well',
-      'Good day',
-      'Keep up the good work'
+      t('home.greetings.afternoon1'),
+      t('home.greetings.afternoon2'),
+      t('home.greetings.afternoon3'),
+      t('home.greetings.afternoon4')
     ],
     evening: [
-      'Good Evening',
-      'Hope you had a great day',
-      'Time to relax',
-      'Good to see you'
+      t('home.greetings.evening1'),
+      t('home.greetings.evening2'),
+      t('home.greetings.evening3'),
+      t('home.greetings.evening4')
     ],
     night: [
-      'Good Night',
-      'Burning the midnight oil',
-      'Time to rest',
-      'Late night inspiration'
+      t('home.greetings.night1'),
+      t('home.greetings.night2'),
+      t('home.greetings.night3'),
+      t('home.greetings.night4')
     ]
   }
 
@@ -132,11 +134,11 @@ const updateGreeting = () => {
 
 // Date
 const currentDate = computed(() => {
-  return new Date().toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  return new Date().toLocaleDateString(locale.value, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   })
 })
 
@@ -147,12 +149,12 @@ const formatTimeAgo = (dateString: string) => {
   const date = new Date(dateString)
   const now = new Date()
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  
-  if (diffInSeconds < 60) return 'Just now'
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`
-  return date.toLocaleDateString()
+
+  if (diffInSeconds < 60) return t('home.timeAgo.justNow')
+  if (diffInSeconds < 3600) return t('home.timeAgo.minutesAgo', { count: Math.floor(diffInSeconds / 60) })
+  if (diffInSeconds < 86400) return t('home.timeAgo.hoursAgo', { count: Math.floor(diffInSeconds / 3600) })
+  if (diffInSeconds < 604800) return t('home.timeAgo.daysAgo', { count: Math.floor(diffInSeconds / 86400) })
+  return date.toLocaleDateString(locale.value)
 }
 
 const fetchRecentPages = async () => {
@@ -168,7 +170,7 @@ const fetchRecentPages = async () => {
         id: page.id,
         title: page.title,
         time: formatTimeAgo(page.updatedAt),
-        library: page.libraryTitle || 'Unknown Library'
+        library: page.libraryTitle || t('home.labels.unknownLibrary')
       }))
     }
   } catch (error) {
@@ -176,11 +178,10 @@ const fetchRecentPages = async () => {
   }
 }
 
-const pendingTasks = ref([
-  { id: '1', content: 'Review React docs', page: 'React Hooks Best Practice', done: false },
-  { id: '2', content: 'Update timeline', page: 'Project Alpha Review', done: false },
-  { id: '3', content: 'Organize notes', page: 'Weekly Summary W51', done: false }
-])
+const pendingTasks = ref<Array<{ id: string; content: string; page: string; done: boolean }>>([])
+const pendingTasksCardRef = ref<HTMLElement | null>(null)
+const pendingTasksFocused = ref(false)
+let pendingTasksFocusTimer: ReturnType<typeof setTimeout> | null = null
 
 const onThisDay = ref<Array<{ id: string; title: string; icon: string | null; year: string; createdAt: string; libraryTitle: string | null }>>([])
 
@@ -216,10 +217,10 @@ const handleCreateLibrary = () => {
 
 const submitCreateLibrary = async () => {
   if (!createLibraryModel.value.title) {
-    message.warning('Please enter a library title')
+    message.warning(t('home.messages.enterLibraryTitle'))
     return
   }
-  
+
   createLibraryLoading.value = true
   try {
     const newLib = await libraryStore.createLibrary({
@@ -227,28 +228,28 @@ const submitCreateLibrary = async () => {
       content: { type: 'doc', content: [] },
       description: createLibraryModel.value.description
     })
-    
+
     if (newLib) {
-      message.success('Library created successfully')
+      message.success(t('home.messages.libraryCreated'))
       showCreateLibraryModal.value = false
       libraryStore.setCurrentLibrary(newLib)
       router.push(`/library/${newLib.id}`)
     }
   } catch (error) {
-    message.error('Failed to create library')
+    message.error(t('home.messages.createLibraryFailed'))
   } finally {
     createLibraryLoading.value = false
   }
 }
 
 // Library Menu Options
-const libraryOptions = [
+const libraryOptions = computed(() => [
   {
-    label: 'Delete',
+    label: t('common.actions.delete'),
     key: 'delete',
     icon: () => h(NIcon, null, { default: () => h(TrashIcon) })
   }
-]
+])
 
 // Context Menu State
 const showContextMenu = ref(false)
@@ -281,16 +282,16 @@ const onClickoutside = () => {
 
 const confirmDeleteLibrary = async () => {
   if (!libraryToDelete.value) return
-  
+
   deleteLibraryLoading.value = true
   try {
     const success = await libraryStore.deleteLibrary(libraryToDelete.value)
     if (success) {
-      message.success('Library deleted successfully')
+      message.success(t('home.messages.libraryDeleted'))
       showDeleteModal.value = false
     }
   } catch (error) {
-    message.error('Failed to delete library')
+    message.error(t('home.messages.deleteLibraryFailed'))
   } finally {
     deleteLibraryLoading.value = false
     libraryToDelete.value = null
@@ -300,6 +301,25 @@ const confirmDeleteLibrary = async () => {
 const handleSearch = () => {
   // Trigger global search (Ctrl+K)
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+}
+
+const handleOpenTasks = async () => {
+  if (rightDrawerCollapsed.value) {
+    rightDrawerCollapsed.value = false
+    await nextTick()
+  }
+  pendingTasksCardRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  pendingTasksFocused.value = true
+  if (pendingTasksFocusTimer) {
+    clearTimeout(pendingTasksFocusTimer)
+  }
+  pendingTasksFocusTimer = setTimeout(() => {
+    pendingTasksFocused.value = false
+  }, 1200)
+
+  if (pendingTasks.value.length === 0) {
+    message.info(t('home.empty.noPendingTasks'))
+  }
 }
 
 const navigateToLibrary = (id: string) => {
@@ -329,6 +349,13 @@ watch(isTablet, (val: boolean) => {
 })
 
 onUnmounted(() => {
+  if (pendingTasksFocusTimer) {
+    clearTimeout(pendingTasksFocusTimer)
+  }
+})
+
+watch(locale, () => {
+  updateGreeting()
 })
 </script>
 
@@ -346,20 +373,20 @@ onUnmounted(() => {
 
         <!-- Libraries -->
         <div class="section-header">
-          <n-h2>Knowledge Libraries</n-h2>
+          <n-h2>{{ t('home.sections.libraries') }}</n-h2>
           <n-space v-if="libraryStore.libraries.length > 0" :size="4">
-            <n-button :type="viewMode === 'card' ? 'primary' : 'default'" quaternary size="small" @click="setViewMode('card')" title="Card View">
+            <n-button :type="viewMode === 'card' ? 'primary' : 'default'" quaternary size="small" @click="setViewMode('card')" :title="t('home.view.card')">
               <template #icon><n-icon :size="18"><GridIcon /></n-icon></template>
             </n-button>
-            <n-button :type="viewMode === 'compact' ? 'primary' : 'default'" quaternary size="small" @click="setViewMode('compact')" title="Compact View">
+            <n-button :type="viewMode === 'compact' ? 'primary' : 'default'" quaternary size="small" @click="setViewMode('compact')" :title="t('home.view.compact')">
               <template #icon><n-icon :size="18"><CompactIcon /></n-icon></template>
             </n-button>
-            <n-button :type="viewMode === 'list' ? 'primary' : 'default'" quaternary size="small" @click="setViewMode('list')" title="List View">
+            <n-button :type="viewMode === 'list' ? 'primary' : 'default'" quaternary size="small" @click="setViewMode('list')" :title="t('home.view.list')">
               <template #icon><n-icon :size="18"><ListIcon /></n-icon></template>
             </n-button>
           </n-space>
         </div>
-        
+
         <div v-if="libraryStore.loading" class="loading-state">
           <n-grid :cols="1" :y-gap="16">
             <n-gi v-for="i in 3" :key="i"><n-skeleton height="100px" width="100%" :sharp="false" /></n-gi>
@@ -370,9 +397,9 @@ onUnmounted(() => {
           <n-card class="empty-card">
             <n-space vertical align="center">
               <n-icon size="48" depth="3"><LibraryIcon /></n-icon>
-              <n-text depth="3">No libraries yet</n-text>
+              <n-text depth="3">{{ t('home.empty.noLibraries') }}</n-text>
               <n-button type="primary" @click="handleCreateLibrary">
-                Create Your First Library
+                {{ t('home.actions.createFirstLibrary') }}
               </n-button>
             </n-space>
           </n-card>
@@ -391,7 +418,7 @@ onUnmounted(() => {
               <template #header-extra>
                 <n-space align="center">
                   <n-tag size="small" :bordered="false">
-                    {{ lib.pageCount || 0 }} pages
+                    {{ t('home.labels.pagesCount', { count: lib.pageCount || 0 }) }}
                   </n-tag>
                   <n-dropdown trigger="click" :options="libraryOptions" @select="(key) => handleLibraryAction(key, lib.id)">
                     <n-button quaternary circle size="small" @click.stop>
@@ -400,7 +427,7 @@ onUnmounted(() => {
                   </n-dropdown>
                 </n-space>
               </template>
-              
+
               <n-space size="small" style="margin-bottom: 12px;" v-if="lib.tags && lib.tags.length > 0">
                 <n-tag v-for="tag in lib.tags" :key="tag.id" size="tiny" :bordered="false" type="info">
                   {{ tag.name }}
@@ -408,20 +435,20 @@ onUnmounted(() => {
               </n-space>
 
               <n-text depth="3" class="lib-desc">
-                {{ lib.description || 'No description' }}
+                {{ lib.description || t('home.labels.noDescription') }}
               </n-text>
               <template #footer>
                 <n-text depth="3" style="font-size: 12px;">
-                  Last updated: {{ new Date(lib.updatedAt || Date.now()).toLocaleDateString() }}
+                  {{ t('home.labels.lastUpdated', { date: new Date(lib.updatedAt || Date.now()).toLocaleDateString(locale) }) }}
                 </n-text>
               </template>
             </n-card>
           </n-gi>
-          
+
           <n-gi span="24 m:12 l:8">
             <n-button dashed block class="new-lib-btn" @click="handleCreateLibrary">
               <template #icon><n-icon><AddIcon /></n-icon></template>
-              New Library
+              {{ t('home.actions.createLibrary') }}
             </n-button>
           </n-gi>
         </n-grid>
@@ -443,17 +470,17 @@ onUnmounted(() => {
                   </n-dropdown>
                 </div>
                 <div class="compact-bottom">
-                  <n-text depth="3" style="font-size: 12px;">{{ lib.pageCount || 0 }} pages</n-text>
-                  <n-text depth="3" style="font-size: 12px;">{{ new Date(lib.updatedAt || Date.now()).toLocaleDateString() }}</n-text>
+                  <n-text depth="3" style="font-size: 12px;">{{ t('home.labels.pagesCount', { count: lib.pageCount || 0 }) }}</n-text>
+                  <n-text depth="3" style="font-size: 12px;">{{ new Date(lib.updatedAt || Date.now()).toLocaleDateString(locale) }}</n-text>
                 </div>
               </div>
             </n-card>
           </n-gi>
-          
+
           <n-gi span="24 s:12 m:8 l:6">
             <n-button dashed block class="new-lib-btn-compact" @click="handleCreateLibrary">
               <template #icon><n-icon><AddIcon /></n-icon></template>
-              New Library
+              {{ t('home.actions.createLibrary') }}
             </n-button>
           </n-gi>
         </n-grid>
@@ -483,8 +510,8 @@ onUnmounted(() => {
                       {{ tag.name }}
                     </n-tag>
                   </n-space>
-                  <n-tag size="small" :bordered="false">{{ lib.pageCount || 0 }} pages</n-tag>
-                  <n-text depth="3" style="font-size: 12px; white-space: nowrap;">{{ new Date(lib.updatedAt || Date.now()).toLocaleDateString() }}</n-text>
+                  <n-tag size="small" :bordered="false">{{ t('home.labels.pagesCount', { count: lib.pageCount || 0 }) }}</n-tag>
+                  <n-text depth="3" style="font-size: 12px; white-space: nowrap;">{{ new Date(lib.updatedAt || Date.now()).toLocaleDateString(locale) }}</n-text>
                   <n-dropdown trigger="click" :options="libraryOptions" @select="(key) => handleLibraryAction(key, lib.id)">
                     <n-button quaternary circle size="small" @click.stop>
                       <template #icon><n-icon><MoreIcon /></n-icon></template>
@@ -496,7 +523,7 @@ onUnmounted(() => {
           </n-card>
           <n-button dashed block style="margin-top: 12px;" @click="handleCreateLibrary">
             <template #icon><n-icon><AddIcon /></n-icon></template>
-            New Library
+            {{ t('home.actions.createLibrary') }}
           </n-button>
         </div>
       </n-layout-content>
@@ -515,33 +542,33 @@ onUnmounted(() => {
       >
         <div class="right-drawer-content">
           <n-space vertical :size="24">
-            
+
             <!-- Quick Actions -->
-            <n-card size="small" title="Quick Actions">
+            <n-card size="small" :title="t('home.sections.quickActions')">
               <div class="quick-actions-container">
                 <div class="action-item" @click="handleCreateLibrary">
-                  <n-button secondary circle type="primary" class="action-btn">
+                  <n-button secondary circle type="primary" class="action-btn" @click.stop="handleCreateLibrary">
                     <template #icon><n-icon size="20"><AddIcon /></n-icon></template>
                   </n-button>
-                  <n-text depth="3" class="action-label">New Lib</n-text>
+                  <n-text depth="3" class="action-label">{{ t('home.actions.newLibShort') }}</n-text>
                 </div>
                 <div class="action-item" @click="handleSearch">
-                  <n-button secondary circle type="info" class="action-btn">
+                  <n-button secondary circle type="info" class="action-btn" @click.stop="handleSearch">
                     <template #icon><n-icon size="20"><SearchIcon /></n-icon></template>
                   </n-button>
-                  <n-text depth="3" class="action-label">Search</n-text>
+                  <n-text depth="3" class="action-label">{{ t('home.actions.search') }}</n-text>
                 </div>
-                <div class="action-item">
-                  <n-button secondary circle type="success" class="action-btn">
+                <div class="action-item" @click="handleOpenTasks">
+                  <n-button secondary circle type="success" class="action-btn" @click.stop="handleOpenTasks">
                     <template #icon><n-icon size="20"><CheckIcon /></n-icon></template>
                   </n-button>
-                  <n-text depth="3" class="action-label">Tasks</n-text>
+                  <n-text depth="3" class="action-label">{{ t('home.actions.tasks') }}</n-text>
                 </div>
               </div>
             </n-card>
 
             <!-- Recent Pages -->
-            <n-card size="small" title="Recent Pages">
+            <n-card size="small" :title="t('home.sections.recentPages')">
               <n-list hoverable clickable>
                 <n-list-item v-for="page in recentPages" :key="page.id" @click="navigateToPage(page.id)">
                   <n-thing>
@@ -560,26 +587,29 @@ onUnmounted(() => {
             </n-card>
 
             <!-- Pending Tasks -->
-            <n-card size="small" title="Pending Tasks">
-              <template #header-extra>
-                <n-tag type="warning" round size="small">{{ pendingTasks.length }}</n-tag>
-              </template>
-              <n-list>
-                <n-list-item v-for="task in pendingTasks" :key="task.id">
-                  <n-space align="start" :wrap="false">
-                    <n-checkbox v-model:checked="task.done" />
-                    <div>
-                      <n-text :delete="task.done">{{ task.content }}</n-text>
-                      <br/>
-                      <n-text depth="3" style="font-size: 12px;">From: {{ task.page }}</n-text>
-                    </div>
-                  </n-space>
-                </n-list-item>
-              </n-list>
-            </n-card>
+            <div ref="pendingTasksCardRef" :class="{ 'pending-tasks-focus': pendingTasksFocused }">
+              <n-card size="small" :title="t('home.sections.pendingTasks')">
+                <template #header-extra>
+                  <n-tag type="warning" round size="small">{{ pendingTasks.length }}</n-tag>
+                </template>
+                <n-list v-if="pendingTasks.length > 0">
+                  <n-list-item v-for="task in pendingTasks" :key="task.id">
+                    <n-space align="start" :wrap="false">
+                      <n-checkbox v-model:checked="task.done" />
+                      <div>
+                        <n-text :delete="task.done">{{ task.content }}</n-text>
+                        <br/>
+                        <n-text depth="3" style="font-size: 12px;">{{ t('home.labels.fromPage', { page: task.page }) }}</n-text>
+                      </div>
+                    </n-space>
+                  </n-list-item>
+                </n-list>
+                <n-text v-else depth="3" style="font-size: 13px;">{{ t('home.empty.noPendingTasks') }}</n-text>
+              </n-card>
+            </div>
 
             <!-- On This Day -->
-            <n-card size="small" title="On This Day">
+            <n-card size="small" :title="t('home.sections.onThisDay')">
               <n-list v-if="onThisDay.length > 0" hoverable clickable>
                 <n-list-item v-for="item in onThisDay" :key="item.id" @click="navigateToPage(item.id)">
                   <n-thing>
@@ -597,22 +627,22 @@ onUnmounted(() => {
                   </n-thing>
                 </n-list-item>
               </n-list>
-              <n-text v-else depth="3" style="font-size: 13px;">No pages created on this day in previous years.</n-text>
+              <n-text v-else depth="3" style="font-size: 13px;">{{ t('home.empty.noOnThisDay') }}</n-text>
             </n-card>
 
             <!-- Long Unvisited -->
-            <n-card size="small" title="Long Unvisited">
+            <n-card size="small" :title="t('home.sections.longUnvisited')">
               <n-list v-if="longUnvisited.length > 0" hoverable clickable>
                 <n-list-item v-for="item in longUnvisited" :key="item.id" @click="navigateToPage(item.id)">
                   <n-space justify="space-between" align="center" style="width: 100%;">
                     <n-ellipsis style="max-width: 180px">
                       <span v-if="item.icon" style="margin-right: 4px;">{{ item.icon }}</span>{{ item.title }}
                     </n-ellipsis>
-                    <n-tag type="error" size="small" :bordered="false">{{ item.days }}d</n-tag>
+                    <n-tag type="error" size="small" :bordered="false">{{ t('home.labels.daysAgoShort', { count: item.days }) }}</n-tag>
                   </n-space>
                 </n-list-item>
               </n-list>
-              <n-text v-else depth="3" style="font-size: 13px;">No unvisited pages found.</n-text>
+              <n-text v-else depth="3" style="font-size: 13px;">{{ t('home.empty.noLongUnvisited') }}</n-text>
             </n-card>
 
           </n-space>
@@ -636,29 +666,29 @@ onUnmounted(() => {
     <n-modal v-model:show="showCreateLibraryModal">
       <n-card
         style="width: 600px"
-        title="Create New Library"
+        :title="t('home.modal.createLibraryTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
         aria-modal="true"
       >
         <n-form>
-          <n-form-item label="Library Title">
-            <n-input v-model:value="createLibraryModel.title" placeholder="e.g. Tech Learning" />
+          <n-form-item :label="t('home.modal.libraryTitleLabel')">
+            <n-input v-model:value="createLibraryModel.title" :placeholder="t('home.modal.libraryTitlePlaceholder')" />
           </n-form-item>
-          <n-form-item label="Description">
-            <n-input 
-              v-model:value="createLibraryModel.description" 
-              type="textarea" 
-              placeholder="What is this library about?" 
+          <n-form-item :label="t('home.modal.descriptionLabel')">
+            <n-input
+              v-model:value="createLibraryModel.description"
+              type="textarea"
+              :placeholder="t('home.modal.descriptionPlaceholder')"
             />
           </n-form-item>
         </n-form>
         <template #footer>
           <n-space justify="end">
-            <n-button @click="showCreateLibraryModal = false">Cancel</n-button>
+            <n-button @click="showCreateLibraryModal = false">{{ t('common.actions.cancel') }}</n-button>
             <n-button type="primary" :loading="createLibraryLoading" @click="submitCreateLibrary">
-              Create
+              {{ t('common.actions.create') }}
             </n-button>
           </n-space>
         </template>
@@ -669,18 +699,18 @@ onUnmounted(() => {
     <n-modal v-model:show="showDeleteModal">
       <n-card
         style="width: 400px"
-        title="Delete Library"
+        :title="t('home.modal.deleteLibraryTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
         aria-modal="true"
       >
-        <p>Are you sure you want to delete this library? This action cannot be undone and all pages within it will be deleted.</p>
+        <p>{{ t('home.modal.deleteLibraryConfirm') }}</p>
         <template #footer>
           <n-space justify="end">
-            <n-button @click="showDeleteModal = false">Cancel</n-button>
+            <n-button @click="showDeleteModal = false">{{ t('common.actions.cancel') }}</n-button>
             <n-button type="error" :loading="deleteLibraryLoading" @click="confirmDeleteLibrary">
-              Delete
+              {{ t('common.actions.delete') }}
             </n-button>
           </n-space>
         </template>
@@ -711,7 +741,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   height: 100%;
-  
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-card-hover);
@@ -882,7 +912,7 @@ onUnmounted(() => {
 
   &:hover {
     background-color: var(--color-bg-hover);
-    
+
     .action-btn {
       transform: translateY(-2px);
       box-shadow: var(--shadow-card-hover);
@@ -899,5 +929,11 @@ onUnmounted(() => {
     font-size: 12px;
     font-weight: 500;
   }
+}
+
+.pending-tasks-focus {
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--n-primary-color);
+  transition: box-shadow 0.2s ease;
 }
 </style>

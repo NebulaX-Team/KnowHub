@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, h } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
 import { usePageStore } from '@/stores/page'
 import { useLibraryStore } from '@/stores/library'
@@ -14,7 +15,7 @@ import {
   NInput, NTag, NButton, NIcon, NSpin, NDrawer, NDrawerContent,
   NInputNumber, useMessage, NDropdown
 } from 'naive-ui'
-import { 
+import {
   InformationCircleOutline, TimeOutline, ListOutline, GlobeOutline,
   AddOutline, EllipsisHorizontalOutline, CopyOutline
 } from '@vicons/ionicons5'
@@ -28,6 +29,7 @@ const route = useRoute()
 const pageStore = usePageStore()
 const libraryStore = useLibraryStore()
 const message = useMessage()
+const { t, locale } = useI18n()
 
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('lg')
@@ -71,7 +73,7 @@ const loadPage = async () => {
     }
   } catch (e) {
     console.error(e)
-    message.error('Failed to load page')
+    message.error(t('pageContent.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -84,10 +86,10 @@ watch(() => pageId.value, loadPage)
 // Breadcrumbs
 const breadcrumbs = computed(() => {
   const crumbs = []
-  
+
   // Home
   crumbs.push({
-    label: 'Home',
+    label: t('pageContent.breadcrumb.home'),
     to: { name: 'Home' }
   })
 
@@ -101,26 +103,26 @@ const breadcrumbs = computed(() => {
     })
     return crumbs
   }
-  
+
   // Library
   if (pageStore.currentPage?.libraryId) {
     const lib = libraryStore.libraries.find(l => l.id === pageStore.currentPage?.libraryId)
     crumbs.push({
-      label: lib?.title || 'Library',
+      label: lib?.title || t('pageContent.breadcrumb.libraryFallback'),
       to: { name: 'Library', params: { id: pageStore.currentPage?.libraryId } }
     })
   }
-  
+
   // Parent
   if (pageStore.currentPage?.parentId) {
      // Ideally fetch parent info. For now, just a placeholder if we don't have it.
      // If we had the tree loaded, we could find it.
      crumbs.push({
-       label: '...',
+       label: t('pageContent.breadcrumb.parentFallback'),
        to: undefined // or link to parent if we knew the ID
      })
   }
-  
+
   // Current Page
   if (pageStore.currentPage) {
     crumbs.push({
@@ -128,7 +130,7 @@ const breadcrumbs = computed(() => {
       to: { name: 'Page', params: { id: pageStore.currentPage.id } }
     })
   }
-  
+
   return crumbs
 })
 
@@ -152,23 +154,23 @@ watch(() => pageStore.currentPage, (newPage) => {
 
 const handleTitleSave = async () => {
   if (!pageStore.currentPage || title.value === pageStore.currentPage.title) return
-  
+
   try {
     await pageStore.updatePage(pageStore.currentPage.id, { title: title.value })
-    message.success('Title updated')
+    message.success(t('pageContent.messages.titleUpdated'))
   } catch (e) {
-    message.error('Failed to update title')
+    message.error(t('pageContent.messages.updateTitleFailed'))
   }
 }
 
 const handleDescriptionSave = async () => {
   if (!pageStore.currentPage || description.value === (pageStore.currentPage.description || '')) return
-  
+
   try {
     await pageStore.updatePage(pageStore.currentPage.id, { description: description.value })
-    message.success('Description updated')
+    message.success(t('pageContent.messages.descriptionUpdated'))
   } catch (e) {
-    message.error('Failed to update description')
+    message.error(t('pageContent.messages.updateDescriptionFailed'))
   }
 }
 
@@ -179,32 +181,32 @@ const handleIconUpdate = async (icon: string | undefined | null) => {
     // If it's a library page, we might need to update library store too if it's loaded there
     // But pageStore.updatePage should handle the API call
     await pageStore.updatePage(pageStore.currentPage.id, { icon: icon ?? null })
-    
+
     // Check if this page corresponds to a library and update it
     const lib = libraryStore.libraries.find(l => l.id === pageStore.currentPage?.id)
     if (lib) {
       // Update the library in the list
       lib.icon = icon
-      
+
       // If it's the currently selected library, update that too to trigger reactivity in Sidebar
       if (libraryStore.currentLibrary?.id === lib.id) {
         libraryStore.setCurrentLibrary({ ...lib, icon })
       }
     }
-    
-    message.success('Icon updated')
+
+    message.success(t('pageContent.messages.iconUpdated'))
   } catch (e) {
-    message.error('Failed to update icon')
+    message.error(t('pageContent.messages.updateIconFailed'))
   }
 }
 
 // Tag management
 const handleAddTag = async (value: string) => {
   if (!pageStore.currentPage || !value.trim()) return
-  
+
   // Check if tag exists, if not create it
   let tag = allTags.value.find(t => t.name === value)
-  
+
   try {
     if (!tag) {
       const res = await tagApi.createTag(value)
@@ -215,7 +217,7 @@ const handleAddTag = async (value: string) => {
         throw new Error(res.message)
       }
     }
-    
+
     if (tag) {
       // Attach to page
       await tagApi.attachTagToPage(pageStore.currentPage.id, tag.id)
@@ -223,39 +225,39 @@ const handleAddTag = async (value: string) => {
       if (!pageTags.value.some(t => t.id === tag!.id)) {
         pageTags.value.push(tag)
       }
-      message.success('Tag added')
+      message.success(t('pageContent.messages.tagAdded'))
     }
   } catch (e) {
-    message.error('Failed to add tag')
+    message.error(t('pageContent.messages.addTagFailed'))
   }
-  
+
   showTagInput.value = false
   newTagValue.value = ''
 }
 
 const handleRemoveTag = async (tagId: string) => {
   if (!pageStore.currentPage) return
-  
+
   try {
     await tagApi.detachTagFromPage(pageStore.currentPage.id, tagId)
     pageTags.value = pageTags.value.filter(t => t.id !== tagId)
-    message.success('Tag removed')
+    message.success(t('pageContent.messages.tagRemoved'))
   } catch (e) {
-    message.error('Failed to remove tag')
+    message.error(t('pageContent.messages.removeTagFailed'))
   }
 }
 
 // Content update
 const handleContentUpdate = useDebounceFn(async (content: any) => {
   if (!pageStore.currentPage) return
-  
+
   try {
     // In a real app, we might want to check if content actually changed significantly
     await pageStore.updatePage(pageStore.currentPage.id, { content })
     // Optional: show saving indicator
   } catch (e) {
     console.error('Failed to save content', e)
-    message.error('Failed to save content')
+    message.error(t('pageContent.messages.saveContentFailed'))
   }
 }, 1000)
 
@@ -282,7 +284,7 @@ const handleUpdateSettings = async () => {
       versionRetentionLimit: versionRetentionLimit.value
     })
     if (res.code === 0) {
-      message.success('Settings updated successfully')
+      message.success(t('pageContent.messages.settingsUpdated'))
       // Update local metadata
       if (pageStore.currentPage) {
         const metadata = pageStore.currentPage.metadata || {}
@@ -290,18 +292,18 @@ const handleUpdateSettings = async () => {
         pageStore.currentPage.metadata = metadata
       }
     } else {
-      message.error(res.message || 'Failed to update settings')
+      message.error(res.message || t('pageContent.messages.updateSettingsFailed'))
     }
   } catch (e) {
     console.error('Failed to update settings', e)
-    message.error('Failed to update settings')
+    message.error(t('pageContent.messages.updateSettingsFailed'))
   }
 }
 
 // Copy as Markdown
 const handleCopyMarkdown = async () => {
   if (!pageStore.currentPage?.content) {
-    message.warning('No content to copy')
+    message.warning(t('pageContent.messages.noContentToCopy'))
     return
   }
   try {
@@ -311,22 +313,22 @@ const handleCopyMarkdown = async () => {
     })
     const success = await copyToClipboard(md)
     if (success) {
-      message.success('Copied as Markdown')
+      message.success(t('pageContent.messages.copiedAsMarkdown'))
     } else {
-      message.error('Failed to copy to clipboard')
+      message.error(t('pageContent.messages.copyFailed'))
     }
   } catch {
-    message.error('Failed to copy to clipboard')
+    message.error(t('pageContent.messages.copyFailed'))
   }
 }
 
 // Mobile Actions Menu
-const mobileActionOptions = [
-  { label: 'Info', key: 'info', icon: () => h(NIcon, null, { default: () => h(InformationCircleOutline) }) },
-  { label: 'History', key: 'history', icon: () => h(NIcon, null, { default: () => h(TimeOutline) }) },
-  { label: 'Tasks', key: 'tasks', icon: () => h(NIcon, null, { default: () => h(ListOutline) }) },
-  { label: 'Public Access', key: 'public', icon: () => h(NIcon, null, { default: () => h(GlobeOutline) }) },
-]
+const mobileActionOptions = computed(() => [
+  { label: t('pageContent.mobileAction.info'), key: 'info', icon: () => h(NIcon, null, { default: () => h(InformationCircleOutline) }) },
+  { label: t('pageContent.mobileAction.history'), key: 'history', icon: () => h(NIcon, null, { default: () => h(TimeOutline) }) },
+  { label: t('pageContent.mobileAction.tasks'), key: 'tasks', icon: () => h(NIcon, null, { default: () => h(ListOutline) }) },
+  { label: t('pageContent.mobileAction.publicAccess'), key: 'public', icon: () => h(NIcon, null, { default: () => h(GlobeOutline) }) },
+])
 
 const handleMobileActionSelect = (key: string) => {
   if (key === 'info') showInfo.value = true
@@ -349,23 +351,23 @@ const handleMobileActionSelect = (key: string) => {
 
       <div class="header-main" :class="{ 'mobile-header': isMobile }">
         <div class="title-section">
-          <IconPicker 
+          <IconPicker
             :value="pageStore.currentPage.icon ?? undefined"
-            @update:value="handleIconUpdate" 
+            @update:value="handleIconUpdate"
           />
           <div class="title-wrapper">
-            <n-input 
-              v-model:value="title" 
-              type="text" 
-              placeholder="Page Title" 
+            <n-input
+              v-model:value="title"
+              type="text"
+              :placeholder="t('pageContent.input.pageTitle')"
               class="title-input"
               @blur="handleTitleSave"
               @keyup.enter="handleTitleSave"
             />
-            <n-input 
-              v-model:value="description" 
-              type="text" 
-              placeholder="Add description..." 
+            <n-input
+              v-model:value="description"
+              type="text"
+              :placeholder="t('pageContent.input.addDescription')"
               class="description-input"
               :maxlength="100"
               @blur="handleDescriptionSave"
@@ -373,7 +375,7 @@ const handleMobileActionSelect = (key: string) => {
             />
           </div>
         </div>
-        
+
         <div class="actions" v-if="!isMobile">
           <n-button quaternary circle @click="showInfo = true">
             <template #icon><n-icon><InformationCircleOutline /></n-icon></template>
@@ -396,23 +398,23 @@ const handleMobileActionSelect = (key: string) => {
            </n-dropdown>
         </div>
       </div>
-      
+
       <div class="meta-section">
         <div class="tags">
-          <n-tag 
-            v-for="tag in pageTags" 
-            :key="tag.id" 
-            closable 
+          <n-tag
+            v-for="tag in pageTags"
+            :key="tag.id"
+            closable
             @close="handleRemoveTag(tag.id)"
             size="small"
           >
             {{ tag.name }}
           </n-tag>
-          
+
           <n-input
             v-if="showTagInput"
             v-model:value="newTagValue"
-            placeholder="New Tag"
+            :placeholder="t('pageContent.input.newTag')"
             size="small"
             autosize
             style="width: 100px"
@@ -421,53 +423,53 @@ const handleMobileActionSelect = (key: string) => {
           />
           <n-button v-else size="tiny" dashed @click="showTagInput = true">
             <template #icon><n-icon><AddOutline /></n-icon></template>
-            Add Tag
+            {{ t('pageContent.actions.addTag') }}
           </n-button>
         </div>
-        
+
         <div class="timestamps">
-          <span>Created: {{ new Date(pageStore.currentPage.createdAt).toLocaleDateString() }}</span>
-          <span>Updated: {{ new Date(pageStore.currentPage.updatedAt).toLocaleDateString() }}</span>
+          <span>{{ t('pageContent.timestamps.created', { date: new Date(pageStore.currentPage.createdAt).toLocaleDateString(locale) }) }}</span>
+          <span>{{ t('pageContent.timestamps.updated', { date: new Date(pageStore.currentPage.updatedAt).toLocaleDateString(locale) }) }}</span>
         </div>
       </div>
     </div>
-    
+
     <!-- Content -->
     <div class="content-area">
-      <TiptapEditor 
+      <TiptapEditor
         :key="pageStore.currentPage.id"
         :content="pageStore.currentPage.content"
         :page-id="pageStore.currentPage.id"
         :library-id="pageStore.currentPage.libraryId"
-        @update="handleContentUpdate" 
+        @update="handleContentUpdate"
       />
     </div>
-    
+
     <!-- Drawers/Modals -->
     <n-drawer v-model:show="showInfo" width="350">
-      <n-drawer-content title="Page Info">
+      <n-drawer-content :title="t('pageContent.infoDrawer.title')">
         <div class="page-info-content">
           <div class="info-section">
-            <h4>Basic Information</h4>
-            <p><strong>Page ID:</strong> {{ pageStore.currentPage.id }}</p>
-            <p><strong>Library ID:</strong> {{ pageStore.currentPage.libraryId || 'N/A' }}</p>
-            <p><strong>Type:</strong> {{ pageStore.currentPage.type }}</p>
+            <h4>{{ t('pageContent.infoDrawer.basicInfo') }}</h4>
+            <p><strong>{{ t('pageContent.infoDrawer.pageId') }}:</strong> {{ pageStore.currentPage.id }}</p>
+            <p><strong>{{ t('pageContent.infoDrawer.libraryId') }}:</strong> {{ pageStore.currentPage.libraryId || t('pageContent.infoDrawer.notAvailable') }}</p>
+            <p><strong>{{ t('pageContent.infoDrawer.type') }}:</strong> {{ pageStore.currentPage.type }}</p>
           </div>
 
           <div class="info-section">
-            <h4>Version History Settings</h4>
+            <h4>{{ t('pageContent.infoDrawer.versionSettings') }}</h4>
             <p style="font-size: 12px; color: var(--color-toc-text); margin-bottom: 8px;">
-              Set the maximum number of versions to keep for this page.
+              {{ t('pageContent.infoDrawer.versionHint') }}
             </p>
             <n-input-number
               v-model:value="versionRetentionLimit"
               :min="0"
               :max="999"
-              placeholder="99"
+              :placeholder="t('pageContent.infoDrawer.versionLimitPlaceholder')"
               size="small"
               style="width: 100%; margin-bottom: 8px;"
             >
-              <template #suffix>versions</template>
+              <template #suffix>{{ t('pageContent.infoDrawer.versionsSuffix') }}</template>
             </n-input-number>
             <n-button
               size="small"
@@ -475,43 +477,43 @@ const handleMobileActionSelect = (key: string) => {
               :disabled="!pageStore.currentPage?.id"
               @click="handleUpdateSettings"
             >
-              Save Settings
+              {{ t('pageContent.actions.saveSettings') }}
             </n-button>
           </div>
 
           <div class="info-section">
-            <h4>Export</h4>
+            <h4>{{ t('pageContent.infoDrawer.export') }}</h4>
             <n-button
               size="small"
               @click="handleCopyMarkdown"
               style="width: 100%;"
             >
               <template #icon><n-icon><CopyOutline /></n-icon></template>
-              Copy as Markdown
+              {{ t('pageContent.actions.copyAsMarkdown') }}
             </n-button>
           </div>
 
           <div class="info-section">
-            <h4>Timestamps</h4>
-            <p><strong>Created:</strong> {{ new Date(pageStore.currentPage.createdAt).toLocaleString() }}</p>
-            <p><strong>Updated:</strong> {{ new Date(pageStore.currentPage.updatedAt).toLocaleString() }}</p>
+            <h4>{{ t('pageContent.infoDrawer.timestamps') }}</h4>
+            <p><strong>{{ t('pageContent.infoDrawer.created') }}:</strong> {{ new Date(pageStore.currentPage.createdAt).toLocaleString(locale) }}</p>
+            <p><strong>{{ t('pageContent.infoDrawer.updated') }}:</strong> {{ new Date(pageStore.currentPage.updatedAt).toLocaleString(locale) }}</p>
           </div>
         </div>
       </n-drawer-content>
     </n-drawer>
-    
+
     <n-drawer v-model:show="showHistory" width="300">
-      <n-drawer-content title="Version History">
-        <p>History placeholder</p>
+      <n-drawer-content :title="t('pageContent.historyDrawer.title')">
+        <p>{{ t('pageContent.historyDrawer.placeholder') }}</p>
       </n-drawer-content>
     </n-drawer>
-    
+
     <n-drawer v-model:show="showTasks" width="300">
-      <n-drawer-content title="Tasks">
-        <p>Tasks placeholder</p>
+      <n-drawer-content :title="t('pageContent.tasksDrawer.title')">
+        <p>{{ t('pageContent.tasksDrawer.placeholder') }}</p>
       </n-drawer-content>
     </n-drawer>
-    
+
     <PublicAccessDrawer
       v-model:show="showPublic"
       :type="pageStore.currentPage?.type === 'library' ? 'library' : 'page'"
@@ -529,7 +531,7 @@ const handleMobileActionSelect = (key: string) => {
     <n-spin size="large" />
   </div>
   <div v-else class="empty-state">
-    Select a page to view content
+    {{ t('pageContent.emptyState.selectPage') }}
   </div>
 </template>
 
@@ -546,17 +548,17 @@ const handleMobileActionSelect = (key: string) => {
 
 .page-header {
   margin-bottom: 32px;
-  
+
   .header-main {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-top: 16px;
     margin-bottom: 16px;
-    
+
     &.mobile-header {
        align-items: flex-start;
-       
+
        .title-section {
           max-width: calc(100% - 40px);
        }
@@ -567,7 +569,7 @@ const handleMobileActionSelect = (key: string) => {
       margin-right: 16px;
       display: flex;
       align-items: flex-start;
-      
+
       .title-wrapper {
         flex: 1;
         display: flex;
@@ -581,15 +583,15 @@ const handleMobileActionSelect = (key: string) => {
         border: none;
         background: transparent;
         padding: 0;
-        
+
         :deep(.n-input__input-el) {
           height: auto;
         }
-        
+
         :deep(.n-input__border), :deep(.n-input__state-border) {
           display: none;
         }
-        
+
         &:hover {
           background: var(--color-bg-hover);
         }
@@ -601,36 +603,36 @@ const handleMobileActionSelect = (key: string) => {
         border: none;
         background: transparent;
         padding: 0;
-        
+
         :deep(.n-input__input-el) {
           height: auto;
           padding: 0;
         }
-        
+
         :deep(.n-input__border), :deep(.n-input__state-border) {
           display: none;
         }
-        
+
         &:hover, &:focus-within {
           background: var(--color-bg-hover);
         }
       }
     }
   }
-  
+
   .meta-section {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 12px;
     color: var(--n-text-color-3);
-    
+
     .tags {
       display: flex;
       gap: 8px;
       align-items: center;
     }
-    
+
     .timestamps {
       display: flex;
       gap: 16px;
@@ -647,7 +649,7 @@ const handleMobileActionSelect = (key: string) => {
   padding-left: calc(#{$content-padding} * 2.5);
   padding-right: calc(#{$content-padding} * 2.5);
   box-shadow: var(--shadow-card);
-  
+
   pre {
     white-space: pre-wrap;
     word-wrap: break-word;

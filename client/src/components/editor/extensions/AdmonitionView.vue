@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/vue-3'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   InformationCircleOutline,
   WarningOutline,
@@ -17,36 +18,41 @@ const props = defineProps<{
   }
   updateAttributes: (attrs: any) => void
 }>()
+const { t } = useI18n()
 
 const typeConfig = {
   info: {
     icon: InformationCircleOutline,
     bgColor: 'var(--color-adm-info-bg)',
     textColor: 'var(--color-adm-info-text)',
-    title: 'Info',
+    titleKey: 'editor.slash.items.info.title',
   },
   warning: {
     icon: WarningOutline,
     bgColor: 'var(--color-adm-warning-bg)',
     textColor: 'var(--color-adm-warning-text)',
-    title: 'Warning',
+    titleKey: 'editor.slash.items.warning.title',
   },
   success: {
     icon: CheckmarkCircleOutline,
     bgColor: 'var(--color-adm-success-bg)',
     textColor: 'var(--color-adm-success-text)',
-    title: 'Success',
+    titleKey: 'editor.slash.items.success.title',
   },
   danger: {
     icon: CloseCircleOutline,
     bgColor: 'var(--color-adm-danger-bg)',
     textColor: 'var(--color-adm-danger-text)',
-    title: 'Danger',
+    titleKey: 'editor.slash.items.danger.title',
   },
 }
 
 const config = computed(() => {
-  return typeConfig[props.node.attrs.type as keyof typeof typeConfig] || typeConfig.info
+  const current = typeConfig[props.node.attrs.type as keyof typeof typeConfig] || typeConfig.info
+  return {
+    ...current,
+    title: t(current.titleKey),
+  }
 })
 
 </script>

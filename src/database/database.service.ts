@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import * as Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
@@ -9,9 +10,7 @@ export class DatabaseService implements OnModuleDestroy {
   private dbPath: string;
 
   constructor() {
-    // 从环境变量读取数据库路径，提供默认值
-    console.log('DB_PATH env:', process.env.DB_PATH);
-    this.dbPath = process.env.DB_PATH || path.join(process.cwd(), 'dev.db');
+    this.dbPath = this.resolveDatabasePath();
     const dbDir = path.dirname(this.dbPath);
 
     // 确保目录存在
@@ -27,6 +26,43 @@ export class DatabaseService implements OnModuleDestroy {
     
     // 启用 WAL 模式以提高并发性能
     this.db.pragma('journal_mode = WAL');
+  }
+
+  /**
+   * 解析数据库路径。
+   * 优先级：DB_PATH > 默认 dev.db
+   */
+  private resolveDatabasePath(): string {
+    const dbPath = process.env.DB_PATH;
+
+    console.log('DB_PATH env:', dbPath ?? '(not set)');
+
+    let rawPath = dbPath;
+
+    if (!rawPath) {
+      return path.resolve(process.cwd(), 'dev.db');
+    }
+
+    rawPath = rawPath.trim();
+
+    // 兼容 file:./dev.db 或 file:///abs/path/db.sqlite 写法
+    if (rawPath.startsWith('file://')) {
+      try {
+        rawPath = fileURLToPath(rawPath);
+      } catch {
+        // 如果解析失败，继续按普通路径处理
+      }
+    } else if (rawPath.startsWith('file:')) {
+      rawPath = rawPath.slice('file:'.length);
+    }
+
+    if (!rawPath) {
+      return path.resolve(process.cwd(), 'dev.db');
+    }
+
+    return path.isAbsolute(rawPath)
+      ? rawPath
+      : path.resolve(process.cwd(), rawPath);
   }
 
   async onModuleDestroy() {
@@ -355,15 +391,31 @@ export class DatabaseService implements OnModuleDestroy {
         console.log('✓ Default system config created');
       }
 
-      // 确保网站信息默认配置存在
-      const siteTitleConfig = this.db.prepare('SELECT value FROM SystemConfig WHERE key = ?').get('siteTitle');
-      if (!siteTitleConfig) {
+      // 确保网站信息默认配置存在（支持中英文）
+      const siteTitleConfig = this.db.prepare('SELECT value FROM SystemConfig WHERE key = ?').get('siteTitle') as { value: string } | undefined;
+      const siteDescriptionConfig = this.db.prepare('SELECT value FROM SystemConfig WHERE key = ?').get('siteDescription') as { value: string } | undefined;
+      if (!siteTitleConfig || !siteDescriptionConfig) {
         const insertConfig = this.db.prepare(
           'INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)'
         );
         const now = new Date().toISOString();
-        insertConfig.run('siteTitle', 'Schema', now);
-        insertConfig.run('siteDescription', 'Personal Knowledge Management System', now);
+        const defaultTitle = JSON.stringify({
+          'zh-CN': '知枢',
+          'en-US': 'KnowHub',
+        });
+        const defaultDescription = JSON.stringify({
+          'zh-CN': '面向个人的结构化知识管理系统',
+          'en-US': 'Personal Knowledge Management System',
+        });
+
+        if (!siteTitleConfig) {
+          insertConfig.run('siteTitle', defaultTitle, now);
+        }
+
+        if (!siteDescriptionConfig) {
+          insertConfig.run('siteDescription', defaultDescription, now);
+        }
+
         console.log('✓ Default site info config created');
       }
     } catch (error) {

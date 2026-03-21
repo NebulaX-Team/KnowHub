@@ -2,8 +2,10 @@ import { computed } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
 
+const COLOR_MODE_KEY = 'knowhub_color_mode'
+
 const colorMode = useColorMode({
-  storageKey: 'schema_color_mode',
+  storageKey: COLOR_MODE_KEY,
 })
 
 export function useTheme() {

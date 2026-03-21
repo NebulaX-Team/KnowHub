@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { 
   NLayout, 
   NLayoutContent, 
@@ -19,6 +20,7 @@ import { usePageTitle } from '@/composables/usePageTitle'
 import { useTheme } from '@/composables/useTheme'
 
 const route = useRoute()
+const { t } = useI18n()
 const publicStore = usePublicStore()
 const { tree, currentPageId, currentLibrary } = storeToRefs(publicStore)
 const { isDark, toggleTheme } = useTheme()
@@ -48,7 +50,7 @@ usePageTitle()
           <n-icon><MenuOutline /></n-icon>
         </template>
       </n-button>
-      <span class="mobile-title">{{ currentLibrary?.title || 'Schema Public' }}</span>
+      <span class="mobile-title">{{ currentLibrary?.title || t('publicLayout.defaultTitle') }}</span>
       <n-button quaternary circle class="mobile-theme-toggle" @click="toggleTheme">
         <template #icon>
           <n-icon><MoonOutline v-if="!isDark" /><SunnyOutline v-else /></n-icon>

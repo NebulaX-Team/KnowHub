@@ -4,6 +4,7 @@ import { useSystemStore } from '@/stores/system'
 import { useLibraryStore } from '@/stores/library'
 import { usePageStore } from '@/stores/page'
 import { usePublicStore } from '@/stores/public'
+import { i18n } from '@/i18n'
 
 export function usePageTitle(customTitle?: { icon?: string; title?: string }) {
   const route = useRoute()
@@ -47,7 +48,13 @@ export function usePageTitle(customTitle?: { icon?: string; title?: string }) {
       const prefix = icon ? `${icon} ` : ''
       fullTitle = `${prefix}${title} - ${baseTitle}`
     }
-    // 使用路由元信息
+    // 使用路由元信息（i18n key）
+    else if (route.meta?.titleKey) {
+      const titleKey = route.meta.titleKey as string
+      const routeTitle = i18n.global.t(titleKey)
+      fullTitle = `${routeTitle} - ${baseTitle}`
+    }
+    // 使用路由元信息（纯文本）
     else if (route.meta?.title) {
       const routeTitle = route.meta.title as string
       fullTitle = `${routeTitle} - ${baseTitle}`
@@ -75,6 +82,7 @@ export function usePageTitle(customTitle?: { icon?: string; title?: string }) {
 
   // 监听系统配置变化
   watch(() => systemStore.siteTitle, updateTitle)
+  watch(() => i18n.global.locale.value, updateTitle)
 
   // 监听当前页面变化（仅在 Page 路由时有效）
   watch(() => pageStore.currentPage, () => {

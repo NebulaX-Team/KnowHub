@@ -60,67 +60,67 @@ const routes: RouteRecordRaw[] = [
         path: 'profile',
         name: 'SettingsProfile',
         component: () => import('@/views/settings/ProfileSettings.vue'),
-        meta: { title: 'Account Information' }
+        meta: { titleKey: 'settings.profile' }
       },
       {
         path: 'security',
         name: 'SettingsSecurity',
         component: () => import('@/views/settings/SecuritySettings.vue'),
-        meta: { title: 'Password & Security' }
+        meta: { titleKey: 'settings.security' }
       },
       {
         path: 'libraries',
         name: 'SettingsLibraries',
         component: () => import('@/views/settings/LibrarySettings.vue'),
-        meta: { title: 'Libraries' }
+        meta: { titleKey: 'settings.libraries' }
       },
       {
         path: 'pages',
         name: 'SettingsPages',
         component: () => import('@/views/settings/PageSettings.vue'),
-        meta: { title: 'Pages' }
+        meta: { titleKey: 'settings.pages' }
       },
       {
         path: 'archived',
         name: 'SettingsArchived',
         component: () => import('@/views/settings/SettingsPlaceholder.vue'),
-        meta: { title: 'Archived' }
+        meta: { titleKey: 'settings.archived' }
       },
       {
         path: 'assets',
         name: 'SettingsAssets',
         component: () => import('@/views/settings/ImageResources.vue'),
-        meta: { title: 'Image Resources' }
+        meta: { titleKey: 'settings.assets' }
       },
       {
         path: 'templates',
         name: 'SettingsTemplates',
         component: () => import('@/views/settings/SettingsPlaceholder.vue'),
-        meta: { title: 'Templates' }
+        meta: { titleKey: 'settings.templates' }
       },
       {
         path: 'site-info',
         name: 'SettingsSiteInfo',
         component: () => import('@/views/settings/SiteInfoSettings.vue'),
-        meta: { title: 'Site Information' }
+        meta: { titleKey: 'settings.siteInfo' }
       },
       {
         path: 'smtp',
         name: 'SettingsSmtp',
         component: () => import('@/views/settings/SmtpSettings.vue'),
-        meta: { title: 'SMTP Configuration' }
+        meta: { titleKey: 'settings.smtp' }
       },
       {
         path: 'access',
         name: 'SettingsAccess',
         component: () => import('@/views/settings/SettingsPlaceholder.vue'),
-        meta: { title: 'Access Configuration' }
+        meta: { titleKey: 'settings.access' }
       },
       {
         path: 'users',
         name: 'SettingsUsers',
         component: () => import('@/views/settings/UserManagement.vue'),
-        meta: { title: 'User Management' }
+        meta: { titleKey: 'settings.users' }
       }
     ]
   },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { NSpin, NResult, NCard, NAvatar, NText, NIcon, NEmpty, NTime, NButton, NLayoutHeader } from 'naive-ui'
 import { LibraryOutline, BookOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5'
 import { userApi, type PublicUserProfile } from '@/api/user'
@@ -9,6 +10,7 @@ import { useTheme } from '@/composables/useTheme'
 const route = useRoute()
 const router = useRouter()
 const { isDark, toggleTheme } = useTheme()
+const { t } = useI18n()
 const profile = ref<PublicUserProfile | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -23,12 +25,12 @@ async function fetchProfile() {
     const res = await userApi.getPublicProfile(name)
     if (res.code === 0) {
       profile.value = res.data
-      document.title = `${profile.value.displayName} - Profile`
+      document.title = `${profile.value.displayName} - ${t('publicProfile.profileTitleSuffix')}`
     } else {
-      error.value = 'User not found or profile is not public'
+      error.value = t('publicProfile.notFound')
     }
   } catch {
-    error.value = 'User not found or profile is not public'
+    error.value = t('publicProfile.notFound')
   } finally {
     loading.value = false
   }
@@ -44,7 +46,7 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
 <template>
   <div class="public-profile-layout">
     <NLayoutHeader bordered class="profile-topbar">
-      <span class="site-name">Schema</span>
+      <span class="site-name">{{ t('common.appName') }}</span>
       <NButton quaternary circle @click="toggleTheme">
         <template #icon>
           <NIcon><MoonOutline v-if="!isDark" /><SunnyOutline v-else /></NIcon>
@@ -57,7 +59,7 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
         <NSpin size="large" />
       </div>
       <div v-else-if="error" class="error-state">
-        <NResult status="404" title="404 Not Found" :description="error" />
+        <NResult status="404" :title="t('publicProfile.errorTitle')" :description="error" />
       </div>
       <div v-else-if="profile" class="profile-page">
     <!-- User Info Header -->
@@ -72,7 +74,8 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
       <div class="profile-info">
         <h1 class="profile-name">{{ profile.displayName }}</h1>
         <NText depth="3" class="profile-joined">
-          Joined <NTime :time="new Date(profile.createdAt).getTime()" type="date" />
+          {{ t('publicProfile.joined') }}
+          <NTime :time="new Date(profile.createdAt).getTime()" type="date" />
         </NText>
       </div>
     </div>
@@ -81,12 +84,12 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
     <div class="libraries-section">
       <div class="section-header">
         <NIcon :size="20"><LibraryOutline /></NIcon>
-        <h2>Public Libraries</h2>
+        <h2>{{ t('publicProfile.publicLibraries') }}</h2>
         <NText depth="3" class="library-count">{{ profile.libraries.length }}</NText>
       </div>
 
       <div v-if="profile.libraries.length === 0" class="empty-state">
-        <NEmpty description="No public libraries yet" />
+        <NEmpty :description="t('publicProfile.noPublicLibraries')" />
       </div>
 
       <div v-else class="library-grid">
@@ -107,10 +110,11 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
               <div v-if="lib.description" class="library-description">{{ lib.description }}</div>
               <div class="library-meta">
                 <NText depth="3" style="font-size: 12px">
-                  {{ lib.pageCount || 0 }} public pages
+                  {{ t('publicProfile.publicPagesCount', { count: lib.pageCount || 0 }) }}
                 </NText>
                 <NText depth="3" style="font-size: 12px">
-                  Updated <NTime :time="new Date(lib.updatedAt).getTime()" type="relative" />
+                  {{ t('publicProfile.updated') }}
+                  <NTime :time="new Date(lib.updatedAt).getTime()" type="relative" />
                 </NText>
               </div>
             </div>

@@ -1,12 +1,15 @@
 {
-  "name": "@schema/server",
+  "name": "@knowhub/server",
   "version": "1.0.0",
-  "description": "Schema backend API",
+  "description": "KnowHub backend API",
+  "workspaces": [
+    "client"
+  ],
   "scripts": {
     "build": "nest build",
-    "build:client": "pnpm --filter @schema/client build",
+    "build:client": "node scripts/run-client-script.js build",
     "dev": "nest start --watch",
-    "dev:client": "pnpm --filter @schema/client dev",
+    "dev:client": "node scripts/run-client-script.js dev",
     "start": "node dist/main.js",
     "lint": "eslint . --ext .ts",
     "pack": "node pack.js"

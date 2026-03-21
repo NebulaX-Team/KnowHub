@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 import { NIcon } from 'naive-ui'
 import {
@@ -15,6 +16,7 @@ import { copyToClipboard } from '@/utils/clipboard'
 const props = defineProps<{
   editor: Editor
 }>()
+const { t } = useI18n()
 
 const visible = ref(false)
 const editing = ref(false)
@@ -207,16 +209,16 @@ defineExpose({ show, hide, visible })
               <span class="link-url" :title="linkUrl">{{ linkUrl }}</span>
             </div>
             <div class="link-actions">
-              <button class="link-action-btn" @click="openLink" title="打开链接">
+              <button class="link-action-btn" @click="openLink" :title="t('editor.linkMenu.openLink')">
                 <n-icon :size="16"><OpenOutline /></n-icon>
               </button>
-              <button class="link-action-btn" @click="copyLink" title="复制链接">
+              <button class="link-action-btn" @click="copyLink" :title="t('editor.linkMenu.copyLink')">
                 <n-icon :size="16"><CopyOutline /></n-icon>
               </button>
-              <button class="link-action-btn" @click="startEdit" title="编辑链接">
+              <button class="link-action-btn" @click="startEdit" :title="t('editor.linkMenu.editLink')">
                 <n-icon :size="16"><CreateOutline /></n-icon>
               </button>
-              <button class="link-action-btn danger" @click="removeLink" title="移除链接">
+              <button class="link-action-btn danger" @click="removeLink" :title="t('editor.linkMenu.removeLink')">
                 <n-icon :size="16"><TrashOutline /></n-icon>
               </button>
             </div>
@@ -225,32 +227,32 @@ defineExpose({ show, hide, visible })
           <!-- Edit Mode -->
           <div v-else class="link-edit">
             <div class="link-edit-row">
-              <label class="link-edit-label">链接</label>
+              <label class="link-edit-label">{{ t('editor.linkMenu.urlLabel') }}</label>
               <input
                 ref="urlInputRef"
                 v-model="linkUrl"
                 class="link-edit-input"
-                placeholder="输入链接地址"
+                :placeholder="t('editor.linkMenu.urlPlaceholder')"
                 @keydown.enter.prevent="saveEdit"
               />
             </div>
             <div class="link-edit-row">
-              <label class="link-edit-label">文本</label>
+              <label class="link-edit-label">{{ t('editor.linkMenu.textLabel') }}</label>
               <input
                 v-model="linkText"
                 class="link-edit-input"
-                placeholder="输入显示文本"
+                :placeholder="t('editor.linkMenu.textPlaceholder')"
                 @keydown.enter.prevent="saveEdit"
               />
             </div>
             <div class="link-edit-actions">
               <button class="link-btn cancel" @click="cancelEdit">
                 <n-icon :size="14"><CloseOutline /></n-icon>
-                取消
+                {{ t('editor.linkMenu.cancel') }}
               </button>
               <button class="link-btn save" @click="saveEdit" :disabled="!linkUrl.trim()">
                 <n-icon :size="14"><CheckmarkOutline /></n-icon>
-                保存
+                {{ t('editor.linkMenu.save') }}
               </button>
             </div>
           </div>

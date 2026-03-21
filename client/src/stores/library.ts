@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { libraryApi } from '@/api/library'
 import type { Library } from '@/types'
+import { i18n } from '@/i18n'
 
 export interface LibraryState {
   libraries: Library[]
@@ -11,6 +12,8 @@ export interface LibraryState {
 }
 
 export const useLibraryStore = defineStore('library', () => {
+  const tr = (key: string) => i18n.global.t(key) as string
+
   // State
   const libraries = ref<Library[]>([])
   const currentLibrary = ref<Library | null>(null)
@@ -55,10 +58,10 @@ export const useLibraryStore = defineStore('library', () => {
           setCurrentLibrary(response.data[0])
         }
       } else {
-        setError(response.message || 'Failed to fetch libraries')
+        setError(response.message || tr('errors.library.fetchFailed'))
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch libraries')
+      setError(err.response?.data?.message || tr('errors.library.fetchFailed'))
     } finally {
       setLoading(false)
     }
@@ -82,11 +85,11 @@ export const useLibraryStore = defineStore('library', () => {
         libraries.value.push(newLibrary)
         return newLibrary
       } else {
-        setError(response.message || 'Failed to create library')
+        setError(response.message || tr('errors.library.createFailed'))
         return null
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create library')
+      setError(err.response?.data?.message || tr('errors.library.createFailed'))
       return null
     } finally {
       setLoading(false)
@@ -118,11 +121,11 @@ export const useLibraryStore = defineStore('library', () => {
         }
         return true
       } else {
-        setError(response.message || 'Failed to update library')
+        setError(response.message || tr('errors.library.updateFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update library')
+      setError(err.response?.data?.message || tr('errors.library.updateFailed'))
       return false
     } finally {
       setLoading(false)
@@ -145,11 +148,11 @@ export const useLibraryStore = defineStore('library', () => {
         }
         return true
       } else {
-        setError(response.message || 'Failed to delete library')
+        setError(response.message || tr('errors.library.deleteFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete library')
+      setError(err.response?.data?.message || tr('errors.library.deleteFailed'))
       return false
     } finally {
       setLoading(false)

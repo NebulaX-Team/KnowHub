@@ -1,6 +1,6 @@
 // Application constants
 
-export const APP_NAME = 'Schema'
+export const APP_NAME = 'KnowHub'
 export const APP_VERSION = '1.0.0'
 export const APP_DESCRIPTION = '面向个人的结构化知识管理系统'
 
@@ -9,8 +9,8 @@ export const API_BASE_URL = '/api/v1'
 export const API_TIMEOUT = 10000
 
 // Storage Keys
-export const STORAGE_TOKEN_KEY = 'schema_token'
-export const STORAGE_USER_KEY = 'schema_user'
+export const STORAGE_TOKEN_KEY = 'knowhub_token'
+export const STORAGE_USER_KEY = 'knowhub_user'
 
 // Validation Rules
 export const MIN_PASSWORD_LENGTH = 6

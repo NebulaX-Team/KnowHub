@@ -3,16 +3,16 @@
     <n-card class="not-found-card">
       <n-result
         status="404"
-        title="页面未找到"
-        description="您访问的页面不存在或已被移除"
+        :title="t('notFound.title')"
+        :description="t('notFound.description')"
       >
         <template #footer>
           <n-space>
             <n-button type="primary" @click="$router.push('/home')">
-              返回首页
+              {{ t('notFound.backHome') }}
             </n-button>
             <n-button @click="$router.back()">
-              返回上一页
+              {{ t('notFound.backPrevious') }}
             </n-button>
           </n-space>
         </template>
@@ -22,7 +22,9 @@
 </template>
 
 <script setup lang="ts">
-// No additional logic needed for this simple 404 page
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
 
 <style scoped lang="scss">

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { authApi, type LoginRequest, type RegisterRequest, type SendVerificationRequest, type VerifyCodeRequest, type RegisterWithCodeRequest, type SendResetPasswordRequest, type ResetPasswordRequest } from '@/api/auth'
 import { userApi, type UpdateProfileRequest } from '@/api/user'
 import { STORAGE_TOKEN_KEY } from '@/constants'
+import { i18n } from '@/i18n'
 
 export interface User {
   id: string
@@ -21,9 +22,11 @@ export interface AuthResult {
 }
 
 export const useUserStore = defineStore('user', () => {
+  const tr = (key: string) => i18n.global.t(key) as string
+
   // State
   const user = ref<User | null>(null)
-  const token = ref<string | null>(localStorage.getItem('schema_token'))
+  const token = ref<string | null>(localStorage.getItem(STORAGE_TOKEN_KEY))
   const loading = ref(false)
 
   // Getters
@@ -61,12 +64,12 @@ export const useUserStore = defineStore('user', () => {
         setUser(response.data.user)
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '登录失败' }
+        return { success: false, error: tr('errors.auth.loginFailed') }
       }
     } catch (error: any) {
       return { 
         success: false, 
-        error: error.response?.data?.message || error.message || '登录失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.loginNetwork')
       }
     } finally {
       loading.value = false
@@ -83,12 +86,12 @@ export const useUserStore = defineStore('user', () => {
         setUser(response.data.user)
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '注册失败' }
+        return { success: false, error: tr('errors.auth.registerFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || '注册失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.registerNetwork')
       }
     } finally {
       loading.value = false
@@ -103,12 +106,12 @@ export const useUserStore = defineStore('user', () => {
       if (response.code === 0) {
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '发送验证码失败' }
+        return { success: false, error: tr('errors.auth.sendVerificationFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || '发送验证码失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.sendVerificationNetwork')
       }
     } finally {
       loading.value = false
@@ -123,12 +126,12 @@ export const useUserStore = defineStore('user', () => {
       if (response.code === 0) {
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '验证码验证失败' }
+        return { success: false, error: tr('errors.auth.verifyCodeFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || '验证码验证失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.verifyCodeNetwork')
       }
     } finally {
       loading.value = false
@@ -145,12 +148,12 @@ export const useUserStore = defineStore('user', () => {
         setUser(response.data.user)
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '注册失败' }
+        return { success: false, error: tr('errors.auth.registerFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || '注册失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.registerNetwork')
       }
     } finally {
       loading.value = false
@@ -175,7 +178,7 @@ export const useUserStore = defineStore('user', () => {
       }
     } catch (error) {
       clearToken()
-      return { success: false, error: '获取用户信息失败' }
+      return { success: false, error: tr('errors.profile.fetchFailed') }
     } finally {
       loading.value = false
     }
@@ -190,12 +193,12 @@ export const useUserStore = defineStore('user', () => {
         setUser(response.data)
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '更新失败' }
+        return { success: false, error: tr('errors.profile.updateFailed') }
       }
     } catch (error: any) {
       return { 
         success: false, 
-        error: error.response?.data?.message || error.message || '更新失败'
+        error: error.response?.data?.message || error.message || tr('errors.profile.updateFailed')
       }
     } finally {
       loading.value = false
@@ -215,12 +218,12 @@ export const useUserStore = defineStore('user', () => {
       if (response.code === 0) {
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '发送验证码失败' }
+        return { success: false, error: tr('errors.auth.sendResetFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || '发送验证码失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.sendResetNetwork')
       }
     } finally {
       loading.value = false
@@ -235,12 +238,12 @@ export const useUserStore = defineStore('user', () => {
       if (response.code === 0) {
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: '重置密码失败' }
+        return { success: false, error: tr('errors.auth.resetPasswordFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || '重置密码失败，请检查网络连接'
+        error: error.response?.data?.message || error.message || tr('errors.auth.resetPasswordNetwork')
       }
     } finally {
       loading.value = false

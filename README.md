@@ -1,7 +1,13 @@
-# Schema - Personal Knowledge Management System
+# KnowHub - Personal Knowledge Management System
+
+> Language: [English](./README.md) | [简体中文](./README_ZH.md)
+>
+> Original upstream project: https://github.com/LunaDeerTech/Schema
+>
+> Changelog: [CHANGELOG.md](./CHANGELOG.md)
 
 <p align="center">
-  <a href="https://github.com/LunaDeerTech/Schema" target="_blank">
+  <a href="https://github.com/NebulaX-Team/KnowHub" target="_blank">
     <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status">
     <img src="https://img.shields.io/badge/NestJS-10.x-blue" alt="NestJS">
     <img src="https://img.shields.io/badge/Vue-3.x-green" alt="Vue">
@@ -9,7 +15,7 @@
 </p>
 
 <p align="center">
-  <strong>Schema</strong> is a modern personal knowledge management system - Think Confluence for personal use.
+  <strong>KnowHub</strong> is a modern personal knowledge management system - Think Confluence for personal use.
 </p>
 
 ## ✨ Features
@@ -71,22 +77,27 @@
 ### Prerequisites
 
 - **Node.js** 18+ (LTS recommended)
-- **pnpm** (package manager)
+- **bun** or **pnpm** (package manager)
 - **Git** (for cloning)
 
 ### Installation
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/LunaDeerTech/Schema.git
-cd Schema
+git clone https://github.com/NebulaX-Team/KnowHub.git
+cd KnowHub
 ```
 
 2. **Install dependencies:**
 ```bash
-pnpm install
-cd client && pnpm install && cd ..
+# Option A (bun)
+bun install
+
+# Option B (pnpm)
+# pnpm install
 ```
+
+`client` is configured as a workspace package, so running install at the root is enough.
 
 3. **Configure environment:**
 ```bash
@@ -97,7 +108,7 @@ Edit `.env` with your configuration:
 ```env
 NODE_ENV=development
 PORT=3000
-DATABASE_URL="file:./dev.db"
+DB_PATH="./dev.db"
 JWT_SECRET=your-super-secret-key-change-in-production
 JWT_EXPIRES_IN=7d
 UPLOAD_DIR=./uploads
@@ -108,17 +119,25 @@ MAX_FILE_SIZE=10485760
 
 Backend (port 3000):
 ```bash
-pnpm dev
+bun run dev
 ```
 
 Frontend (port 5173):
 ```bash
-pnpm dev:client
+bun run dev:client
 ```
 
 5. **Access the application:**
 - Frontend: http://localhost:5173
-- Backend API: http://localhost:3000/api/v1
+- Backend API: http://localhost:\<PORT\>/api/v1
+- Health: http://localhost:\<PORT\>/api/v1/health
+
+Proxy note:
+- `client/vite.config.ts` proxies `/api` and `/uploads` to `http://localhost:<PORT>` by default (`PORT` from your environment, fallback `3000`).
+- You can override it via `VITE_API_PROXY_TARGET`, for example:
+```bash
+VITE_API_PROXY_TARGET=http://localhost:3001 bun run dev:client
+```
 
 ## 🛠️ Development
 
@@ -128,47 +147,47 @@ pnpm dev:client
 
 | Script | Description |
 |--------|-------------|
-| `pnpm dev` | Start backend with hot reload (NestJS) |
-| `pnpm build` | Build backend for production |
-| `pnpm start` | Run built backend server |
-| `pnpm lint` | Lint TypeScript code |
-| `pnpm build:client` | Build frontend separately |
-| `pnpm pack` | Package both backend and frontend |
+| `dev` | Start backend with hot reload (NestJS) |
+| `build` | Build backend for production |
+| `start` | Run built backend server |
+| `lint` | Lint TypeScript code |
+| `build:client` | Build frontend separately |
+| `pack` | Package both backend and frontend |
 
 #### Frontend (client/ Directory)
 
 | Script | Description |
 |--------|-------------|
-| `pnpm dev` | Start Vite dev server (HMR) |
-| `pnpm build` | Build for production |
-| `pnpm preview` | Preview production build |
-| `pnpm lint` | Lint TypeScript/Vue code |
+| `dev` | Start Vite dev server (HMR) |
+| `build` | Build for production |
+| `preview` | Preview production build |
+| `lint` | Lint TypeScript/Vue code |
 
 ### Development Workflow
 
 **Option 1: Separate Terminals (Recommended)**
 ```bash
 # Terminal 1 - Backend
-pnpm dev
+bun run dev
 
 # Terminal 2 - Frontend
-pnpm dev:client
+bun run dev:client
 ```
 
 **Option 2: Single Terminal (using concurrently)**
 ```bash
 # Install concurrently globally
-pnpm add -g concurrently
+bun add -g concurrently
 
 # Run both
-concurrently "pnpm dev" "pnpm dev:client"
+concurrently "bun run dev" "bun run dev:client"
 ```
 
 ### Building for Production
 
 ```bash
 # Build both backend and frontend
-pnpm pack
+bun run pack
 
 # Output: dist/ directory with:
 # - dist/main.js (backend)
@@ -176,19 +195,21 @@ pnpm pack
 # - dist/ (config files)
 
 # Run production server
-pnpm start
+bun run start
 ```
+
+`pack.js` auto-detects bun/pnpm/npm/yarn and runs the matching scripts.
 
 ### Code Quality
 
 **Backend Linting:**
 ```bash
-pnpm lint
+bun run lint
 ```
 
 **Frontend Linting:**
 ```bash
-cd client && pnpm lint
+cd client && bun run lint
 ```
 
 ## ⚙️ Configuration
@@ -203,7 +224,7 @@ NODE_ENV=development
 PORT=3000
 
 # Database
-DB_PATH="file:./dev.db"
+DB_PATH="./dev.db"
 
 # JWT
 JWT_SECRET=your-super-secret-key-change-in-production
@@ -220,10 +241,14 @@ SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-app-password
 ```
 
+Notes:
+- Database path is configured via `DB_PATH`.
+- Both plain paths (for example `./dev.db`) and `file:` format are supported.
+
 ## 📁 Project Structure
 
 ```
-Schema/
+KnowHub/
 ├── .env                    # Environment variables
 ├── .env.example           # Environment template
 ├── .gitignore             # Git ignore rules
@@ -319,7 +344,7 @@ Contributions are welcome! Please follow these guidelines:
 
 1. **Fork the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/Schema.git
+   git clone https://github.com/YOUR_USERNAME/KnowHub.git
    ```
 
 2. **Create a feature branch**
@@ -370,4 +395,3 @@ Contributions are welcome! Please follow these guidelines:
 - [Tiptap](https://tiptap.dev/) - Rich text editor
 - [Naive UI](https://www.naiveui.com/) - Component library
 - [SQLite](https://www.sqlite.org/) - Database
-

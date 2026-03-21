@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { NIcon } from 'naive-ui'
 import { DocumentTextOutline } from '@vicons/ionicons5'
+import { useI18n } from 'vue-i18n'
 import NavigableList from './common/NavigableList.vue'
 
 interface PageItem {
@@ -14,6 +15,7 @@ const props = defineProps<{
   items: PageItem[]
   command: (item: { id: string; label: string }) => void
 }>()
+const { t } = useI18n()
 
 const listRef = ref()
 
@@ -40,7 +42,7 @@ defineExpose({
       <span class="label">{{ item.title }}</span>
     </template>
     <template #empty>
-      Type to search pages...
+      {{ t('editor.referenceList.typeToSearch') }}
     </template>
   </NavigableList>
 </template>

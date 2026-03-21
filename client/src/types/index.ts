@@ -1,4 +1,4 @@
-// Shared TypeScript interfaces for the Schema application
+// Shared TypeScript interfaces for the KnowHub application
 
 export interface ApiResponse<T = any> {
   code: number

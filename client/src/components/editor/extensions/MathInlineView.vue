@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import { ref, computed, nextTick, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import katex from 'katex'
 
 const props = defineProps<{
@@ -13,6 +14,7 @@ const props = defineProps<{
 const editing = ref(false)
 const latexInput = ref(props.node.attrs.latex || '')
 const inputRef = ref<HTMLInputElement | null>(null)
+const { t } = useI18n()
 
 const renderedHtml = computed(() => {
   const tex = props.node.attrs.latex
@@ -67,7 +69,7 @@ onMounted(() => {
       @click="startEdit"
     >
       <span v-if="renderedHtml" v-html="renderedHtml" />
-      <span v-else class="math-inline-placeholder">f(x)</span>
+      <span v-else class="math-inline-placeholder">{{ t('editor.math.inline.emptySample') }}</span>
     </span>
 
     <!-- Edit Mode -->
@@ -76,7 +78,7 @@ onMounted(() => {
         ref="inputRef"
         v-model="latexInput"
         class="math-inline-input"
-        placeholder="LaTeX, e.g. x^2"
+        :placeholder="t('editor.math.inline.placeholder')"
         spellcheck="false"
         @keydown="handleKeydown"
         @blur="finishEdit"

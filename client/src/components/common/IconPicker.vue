@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NPopover,
   NIcon,
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+const { t } = useI18n()
 const showPopover = ref(false)
 const searchQuery = ref('')
 
@@ -44,15 +46,15 @@ const emojiCategories = computed(() => {
 
   // Map emoji-mart categories to our format
   const categoryMap: Record<string, string> = {
-    smileys: 'Smileys & Emotion',
-    people: 'People & Body',
-    nature: 'Animals & Nature',
-    food: 'Food & Drink',
-    activities: 'Activities',
-    travel: 'Travel & Places',
-    objects: 'Objects',
-    symbols: 'Symbols',
-    flags: 'Flags'
+    smileys: t('iconPicker.categories.smileys'),
+    people: t('iconPicker.categories.people'),
+    nature: t('iconPicker.categories.nature'),
+    food: t('iconPicker.categories.food'),
+    activities: t('iconPicker.categories.activities'),
+    travel: t('iconPicker.categories.travel'),
+    objects: t('iconPicker.categories.objects'),
+    symbols: t('iconPicker.categories.symbols'),
+    flags: t('iconPicker.categories.flags')
   }
 
   data.categories.forEach((category: Category) => {
@@ -105,7 +107,7 @@ const handleSelect = (emoji: string) => {
 const handleClear = () => {
   emit('update:value', null)
   searchQuery.value = ''
-  message.success('Icon cleared')
+  message.success(t('iconPicker.messages.cleared'))
 }
 
 // Handle manual input
@@ -123,7 +125,7 @@ const handleInput = (val: string | null) => {
     searchQuery.value = ''
   } else {
     // If no emoji found, show a warning
-    message.warning('Please enter a valid emoji')
+    message.warning(t('iconPicker.messages.invalid'))
   }
 }
 
@@ -150,7 +152,7 @@ const emojiPreview = computed(() => {
   // If not found in data, just show the emoji
   return {
     emoji: props.value,
-    name: 'Custom emoji'
+    name: t('iconPicker.customEmoji')
   }
 })
 </script>
@@ -180,7 +182,7 @@ const emojiPreview = computed(() => {
         <div class="search-section">
           <n-input
             v-model:value="searchQuery"
-            placeholder="Search emoji..."
+            :placeholder="t('iconPicker.placeholders.search')"
             size="small"
             clearable
             @update:value="handleSearch"
@@ -198,7 +200,7 @@ const emojiPreview = computed(() => {
             quaternary
             type="error"
             @click="handleClear"
-            title="Clear icon"
+            :title="t('iconPicker.actions.clear')"
           >
             <template #icon>
               <n-icon><TrashOutline /></n-icon>
@@ -211,7 +213,7 @@ const emojiPreview = computed(() => {
       <div class="manual-input-section">
         <n-input
           :value="value"
-          placeholder="Type or paste an emoji"
+          :placeholder="t('iconPicker.placeholders.manualInput')"
           size="small"
           clearable
           @update:value="handleInput"
@@ -255,7 +257,7 @@ const emojiPreview = computed(() => {
 
       <!-- Empty state -->
       <div v-if="filteredCategories.length === 0" class="empty-state">
-        <p>No emojis found</p>
+        <p>{{ t('iconPicker.empty') }}</p>
       </div>
     </div>
   </n-popover>

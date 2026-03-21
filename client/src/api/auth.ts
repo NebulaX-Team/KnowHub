@@ -73,6 +73,7 @@ export interface VerificationResponse {
   data: {
     success: boolean
     message: string
+    debugCode?: string
   }
 }
 
@@ -84,7 +85,7 @@ export const authApi = {
     api.post<AuthResponse>('/auth/register', data),
 
   sendVerification: (data: SendVerificationRequest) =>
-    api.post<VerificationResponse>('/auth/send-verification', data),
+    api.post<VerificationResponse>('/auth/send-verification', data, { timeout: 30000 }),
 
   verifyCode: (data: VerifyCodeRequest) =>
     api.post<VerificationResponse>('/auth/verify-code', data),
@@ -93,7 +94,7 @@ export const authApi = {
     api.post<AuthResponse>('/auth/register-with-code', data),
 
   sendResetPassword: (data: SendResetPasswordRequest) =>
-    api.post<VerificationResponse>('/auth/send-reset-password', data),
+    api.post<VerificationResponse>('/auth/send-reset-password', data, { timeout: 30000 }),
 
   resetPassword: (data: ResetPasswordRequest) =>
     api.post<VerificationResponse>('/auth/reset-password', data),

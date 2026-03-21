@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { useMessage, NForm, NFormItem, NInput, NButton, NUpload, NAvatar, NCard, NSwitch, NText, type UploadCustomRequestOptions } from 'naive-ui'
 import { uploadApi } from '@/api/upload'
 
 const userStore = useUserStore()
 const message = useMessage()
+const { t } = useI18n()
 
 const model = reactive({
   displayName: '',
@@ -48,9 +50,9 @@ async function handleSave() {
   })
   
   if (result.success) {
-    message.success('Profile updated successfully')
+    message.success(t('settingsPage.profile.saveSuccess'))
   } else {
-    message.error(result.error || 'Update failed')
+    message.error(result.error || t('settingsPage.profile.saveFailed'))
   }
   loading.value = false
 }
@@ -61,11 +63,15 @@ async function handleTogglePublic(value: boolean) {
     isProfilePublic: value
   })
   if (result.success) {
-    message.success(value ? 'Public profile enabled' : 'Public profile disabled')
+    message.success(
+      value
+        ? t('settingsPage.profile.publicEnabledSuccess')
+        : t('settingsPage.profile.publicDisabledSuccess')
+    )
   } else {
     // Revert on failure
     model.isProfilePublic = !value
-    message.error(result.error || 'Update failed')
+    message.error(result.error || t('settingsPage.profile.saveFailed'))
   }
 }
 
@@ -75,12 +81,12 @@ async function handleUpload({ file, onFinish, onError }: UploadCustomRequestOpti
     if (res && res.url) {
       model.avatar = res.url
       onFinish()
-      message.success('Avatar updated successfully')
+      message.success(t('settingsPage.profile.avatarUpdated'))
     } else {
-      throw new Error('Invalid response')
+      throw new Error(t('settingsPage.profile.invalidUploadResponse'))
     }
   } catch (e) {
-    message.error('Upload failed')
+    message.error(t('settingsPage.profile.uploadFailed'))
     onError()
   }
 }
@@ -89,7 +95,7 @@ async function handleUpload({ file, onFinish, onError }: UploadCustomRequestOpti
 <template>
   <div class="settings-content">
     <div class="settings-header">
-      <h2>Account Information</h2>
+      <h2>{{ t('settingsPage.profile.title') }}</h2>
     </div>
 
     <n-card>
@@ -104,29 +110,29 @@ async function handleUpload({ file, onFinish, onError }: UploadCustomRequestOpti
                 :show-file-list="false"
                 accept="image/*"
               >
-                <n-button secondary>Change Avatar</n-button>
+                <n-button secondary>{{ t('settingsPage.profile.changeAvatar') }}</n-button>
               </n-upload>
             </div>
             <div class="upload-hint">
-              Supported formats: JPG, PNG, GIF
+              {{ t('settingsPage.profile.uploadHint') }}
             </div>
           </div>
         </div>
 
-        <n-form-item label="Display Name" path="displayName">
-          <n-input v-model:value="model.displayName" placeholder="How should we call you?" />
+        <n-form-item :label="t('settingsPage.profile.displayName')" path="displayName">
+          <n-input v-model:value="model.displayName" :placeholder="t('settingsPage.profile.displayNamePlaceholder')" />
         </n-form-item>
         
-        <n-form-item label="Email Address" path="email">
-          <n-input v-model:value="model.email" disabled placeholder="Email" />
+        <n-form-item :label="t('settingsPage.profile.emailAddress')" path="email">
+          <n-input v-model:value="model.email" disabled :placeholder="t('settingsPage.profile.emailPlaceholder')" />
           <template #feedback>
-            Contact administrator to change your email
+            {{ t('settingsPage.profile.emailFeedback') }}
           </template>
         </n-form-item>
         
         <div class="form-actions">
           <n-button type="primary" :loading="loading" @click="handleSave" size="large">
-            Save Changes
+            {{ t('settingsPage.profile.saveChanges') }}
           </n-button>
         </div>
       </n-form>
@@ -135,18 +141,18 @@ async function handleUpload({ file, onFinish, onError }: UploadCustomRequestOpti
     <n-card style="margin-top: 16px">
       <div class="profile-public-section">
         <div class="section-title">
-          <h3>Public Profile</h3>
+          <h3>{{ t('settingsPage.profile.publicProfile') }}</h3>
         </div>
         <div class="switch-row">
           <n-switch v-model:value="model.isProfilePublic" @update:value="handleTogglePublic" />
-          <n-text v-if="model.isProfilePublic" type="success">Enabled</n-text>
-          <n-text v-else depth="3">Disabled</n-text>
+          <n-text v-if="model.isProfilePublic" type="success">{{ t('settingsPage.profile.publicEnabled') }}</n-text>
+          <n-text v-else depth="3">{{ t('settingsPage.profile.publicDisabled') }}</n-text>
         </div>
         <div class="profile-public-hint">
-          When enabled, your profile page will be publicly accessible and will list all your public libraries.
+          {{ t('settingsPage.profile.publicHint') }}
         </div>
         <div v-if="userStore.user?.isProfilePublic && profileUrl" class="profile-url">
-          <n-text depth="3">Profile URL: </n-text>
+          <n-text depth="3">{{ t('settingsPage.profile.profileUrl') }}</n-text>
           <a :href="profileUrl" target="_blank" class="profile-link">{{ profileUrl }}</a>
         </div>
       </div>

@@ -2,22 +2,36 @@
 node_modules/
 */node_modules/
 
-# Build outputs
+# Package manager caches
+.pnpm-store/
+.npm/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Build artifacts
 dist/
 build/
 */dist/
 */build/
+coverage/
+*.tsbuildinfo
+
+# Runtime files
+uploads/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # Environment files
 .env
 .env.local
 .env.*.local
-
-# Database
-*.db
-*.db-journal
-*.db-shm
-*.db-wal
 
 # Logs
 logs/
@@ -27,18 +41,16 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# OS generated files
-.DS_Store
-Thumbs.db
+# Temporary files
+*.tmp
+*.temp
 
-# Editor
+# Editor / IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Temporary files
-*.tmp
-*.temp
-
-/uploads/
+# OS files
+.DS_Store
+Thumbs.db

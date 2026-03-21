@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NSpace,
   NCard,
@@ -20,9 +21,9 @@ import {
   NTooltip,
   NEllipsis
 } from 'naive-ui'
-import { 
-  TrashOutline, 
-  CopyOutline, 
+import {
+  TrashOutline,
+  CopyOutline,
   ArrowForwardOutline as ArrowRightIcon,
   ImageOutline as ImageIcon,
   CloudUploadOutline as UploadIcon
@@ -48,6 +49,7 @@ interface UploadedImage {
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 
 const loading = ref(false)
 const images = ref<UploadedImage[]>([])
@@ -69,7 +71,7 @@ const filteredImages = computed(() => {
   // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    result = result.filter(img => 
+    result = result.filter(img =>
       img.originalName.toLowerCase().includes(query) ||
       img.pageTitle?.toLowerCase().includes(query) ||
       img.libraryTitle?.toLowerCase().includes(query)
@@ -79,19 +81,19 @@ const filteredImages = computed(() => {
   return result
 })
 
-const filterOptions = [
-  { label: 'All Images', value: 'all' },
-  { label: 'In Pages', value: 'page' },
-  { label: 'In Libraries', value: 'library' },
-  { label: 'Orphaned', value: 'orphan' }
-]
+const filterOptions = computed(() => [
+  { label: t('settingsPage.assets.filters.all'), value: 'all' },
+  { label: t('settingsPage.assets.filters.page'), value: 'page' },
+  { label: t('settingsPage.assets.filters.library'), value: 'library' },
+  { label: t('settingsPage.assets.filters.orphan'), value: 'orphan' }
+])
 
 async function loadImages() {
   loading.value = true
   try {
     images.value = await uploadApi.getImages()
   } catch (error: any) {
-    message.error(error.message || 'Failed to load images')
+    message.error(error.message || t('settingsPage.assets.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -99,18 +101,18 @@ async function loadImages() {
 
 async function handleDeleteImage(image: UploadedImage) {
   dialog.warning({
-    title: 'Delete Image',
-    content: `Are you sure you want to delete "${image.originalName}"? This action cannot be undone.`,
-    positiveText: 'Delete',
-    negativeText: 'Cancel',
+    title: t('settingsPage.assets.deleteDialog.title'),
+    content: t('settingsPage.assets.deleteDialog.content', { name: image.originalName }),
+    positiveText: t('common.actions.delete'),
+    negativeText: t('common.actions.cancel'),
     onPositiveClick: async () => {
       try {
         loading.value = true
         await uploadApi.deleteImage(image.id)
-        message.success('Image deleted successfully')
+        message.success(t('settingsPage.assets.messages.deleteSuccess'))
         await loadImages()
       } catch (error: any) {
-        message.error(error.message || 'Failed to delete image')
+        message.error(error.message || t('settingsPage.assets.messages.deleteFailed'))
         loading.value = false
       }
     }
@@ -138,23 +140,23 @@ function formatFileSize(bytes: number): string {
 function getLocationInfo(image: UploadedImage): { text: string; type: 'success' | 'info' | 'warning' } {
   if (image.pageId && image.pageTitle) {
     if (image.pageType === 'library') {
-      return { text: `Library: ${image.pageTitle}`, type: 'success' }
+      return { text: t('settingsPage.assets.location.library', { name: image.pageTitle }), type: 'success' }
     }
-    return { text: `Page: ${image.pageTitle}`, type: 'info' }
+    return { text: t('settingsPage.assets.location.page', { name: image.pageTitle }), type: 'info' }
   }
   if (image.libraryId && image.libraryTitle) {
-    return { text: `Library: ${image.libraryTitle}`, type: 'success' }
+    return { text: t('settingsPage.assets.location.library', { name: image.libraryTitle }), type: 'success' }
   }
-  return { text: 'Not associated', type: 'warning' }
+  return { text: t('settingsPage.assets.location.notAssociated'), type: 'warning' }
 }
 
 async function copyImageUrl(url: string) {
   const fullUrl = window.location.origin + url
   const success = await copyToClipboard(fullUrl)
   if (success) {
-    message.success('Image URL copied to clipboard')
+    message.success(t('settingsPage.assets.messages.copySuccess'))
   } else {
-    message.error('Failed to copy URL')
+    message.error(t('settingsPage.assets.messages.copyFailed'))
   }
 }
 
@@ -171,13 +173,13 @@ function handleReplaceImage(image: UploadedImage) {
       loading.value = true
       const formData = new FormData()
       formData.append('file', file)
-      
+
       await uploadApi.replaceImage(image.id, formData)
-      message.success('Image replaced successfully')
-      
+      message.success(t('settingsPage.assets.messages.replaceSuccess'))
+
       // 重新加载图片列表
       await loadImages()
-      
+
       // 强制刷新该图片的显示（破坏浏览器缓存）
       // 通过更新图片对象来触发Vue的响应式更新
       const index = images.value.findIndex(img => img.id === image.id)
@@ -185,7 +187,7 @@ function handleReplaceImage(image: UploadedImage) {
         images.value[index] = { ...images.value[index] }
       }
     } catch (error: any) {
-      message.error(error.message || 'Failed to replace image')
+      message.error(error.message || t('settingsPage.assets.messages.replaceFailed'))
     } finally {
       loading.value = false
     }
@@ -201,8 +203,8 @@ onMounted(() => {
 <template>
   <div class="settings-page">
     <div class="header">
-      <h2>Image Resources</h2>
-      <p class="description">Manage all uploaded images in your knowledge base</p>
+      <h2>{{ t('settingsPage.assets.title') }}</h2>
+      <p class="description">{{ t('settingsPage.assets.description') }}</p>
     </div>
 
     <NCard class="content-card">
@@ -211,7 +213,7 @@ onMounted(() => {
           <NSpace>
             <NInput
               v-model:value="searchQuery"
-              placeholder="Search images..."
+              :placeholder="t('settingsPage.assets.searchPlaceholder')"
               clearable
               style="width: 260px"
             >
@@ -226,19 +228,19 @@ onMounted(() => {
             />
           </NSpace>
           <NButton @click="loadImages" :loading="loading" secondary>
-            Refresh
+            {{ t('common.actions.refresh') }}
           </NButton>
         </NSpace>
       </div>
 
       <NSpin :show="loading">
         <div v-if="filteredImages.length === 0 && !loading" class="empty-state">
-          <NEmpty description="No images found">
+          <NEmpty :description="t('settingsPage.assets.noImages')">
             <template #extra>
               <NText depth="3">
-                {{ searchQuery || filterType !== 'all' 
-                  ? 'Try adjusting your filters or search query' 
-                  : 'Upload images in your pages to see them here' }}
+                {{ searchQuery || filterType !== 'all'
+                  ? t('settingsPage.assets.emptyAdjust')
+                  : t('settingsPage.assets.emptyUploadHint') }}
               </NText>
             </template>
           </NEmpty>
@@ -260,7 +262,7 @@ onMounted(() => {
                     />
                   </div>
                 </template>
-                
+
                 <div class="card-content">
                   <div class="title-row">
                     <NTooltip trigger="hover">
@@ -278,7 +280,7 @@ onMounted(() => {
                       <NEllipsis style="max-width: 120px">{{ getLocationInfo(image).text }}</NEllipsis>
                     </NTag>
                   </div>
-                  
+
                   <div class="info-row">
                     <NText depth="3" class="meta-text">
                       {{ formatFileSize(image.size) }} • {{ new Date(image.createdAt).toLocaleDateString() }}
@@ -294,7 +296,7 @@ onMounted(() => {
                           <template #icon><NIcon :component="CopyOutline" /></template>
                         </NButton>
                       </template>
-                      Copy URL
+                      {{ t('settingsPage.assets.tooltips.copyUrl') }}
                     </NTooltip>
 
                     <NTooltip v-if="image.pageId || image.libraryId">
@@ -303,7 +305,7 @@ onMounted(() => {
                           <template #icon><NIcon :component="ArrowRightIcon" /></template>
                         </NButton>
                       </template>
-                      Go to {{ image.pageType === 'library' ? 'Library' : 'Page' }}
+                      {{ image.pageType === 'library' ? t('settingsPage.assets.tooltips.goToLibrary') : t('settingsPage.assets.tooltips.goToPage') }}
                     </NTooltip>
 
                     <NTooltip>
@@ -312,7 +314,7 @@ onMounted(() => {
                           <template #icon><NIcon :component="UploadIcon" /></template>
                         </NButton>
                       </template>
-                      Replace Image
+                      {{ t('settingsPage.assets.tooltips.replaceImage') }}
                     </NTooltip>
 
 
@@ -372,7 +374,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  
+
   :deep(.n-card-cover) {
     overflow: hidden;
     background: var(--n-color-target);
@@ -387,7 +389,7 @@ onMounted(() => {
   position: relative;
   width: 100%;
   padding-top: 66.67%; // 3:2 Aspect Ratio
-  
+
   .grid-image {
     position: absolute;
     top: 0;

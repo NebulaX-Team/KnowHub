@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { NSpin, NResult, NTag, NButton, NIcon, useMessage } from 'naive-ui'
 import { ShareSocialOutline } from '@vicons/ionicons5'
 import { api } from '@/api/http'
@@ -17,6 +18,7 @@ interface PublicPageData extends Page {
 const route = useRoute()
 const message = useMessage()
 const publicStore = usePublicStore()
+const { t, locale } = useI18n()
 const page = ref<PublicPageData | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -24,9 +26,9 @@ const error = ref('')
 async function copyLink() {
   const success = await copyToClipboard(window.location.href)
   if (success) {
-    message.success('链接已复制到剪贴板')
+    message.success(t('publicPage.copySuccess'))
   } else {
-    message.error('复制失败，请手动复制地址栏链接')
+    message.error(t('publicPage.copyFailed'))
   }
 }
 
@@ -54,7 +56,7 @@ async function fetchPage() {
       document.title = `${page.value.icon ? page.value.icon + ' ' : ''}${page.value.title}`
     }
   } catch (err) {
-    error.value = 'Page not found or not public'
+    error.value = t('publicPage.notFound')
   } finally {
     loading.value = false
   }
@@ -68,7 +70,7 @@ watch(() => route.params.slug, fetchPage, { immediate: true })
     <NSpin size="large" />
   </div>
   <div v-else-if="error" class="error-state">
-    <NResult status="404" title="404 Not Found" :description="error" />
+    <NResult status="404" :title="t('publicPage.errorTitle')" :description="error" />
   </div>
   <div v-else-if="page" class="page-content">
     <!-- Header -->
@@ -88,14 +90,14 @@ watch(() => route.params.slug, fetchPage, { immediate: true })
           <template #icon>
             <NIcon><ShareSocialOutline /></NIcon>
           </template>
-          分享
+          {{ t('publicPage.share') }}
         </NButton>
       </div>
       
       <div class="meta-section">
         <div class="meta-info">
           <div class="author" v-if="page.author">
-            Published by {{ page.author.displayName }}
+            {{ t('publicPage.publishedBy', { name: page.author.displayName }) }}
           </div>
           <div class="tags" v-if="page.tags && page.tags.length">
             <n-tag v-for="tag in page.tags" :key="tag.id" size="small" :bordered="false" class="tag-item">
@@ -104,7 +106,9 @@ watch(() => route.params.slug, fetchPage, { immediate: true })
           </div>
         </div>
         <div class="timestamps">
-          <span>Updated: {{ new Date(page.updatedAt).toLocaleDateString() }}</span>
+          <span>
+            {{ t('publicPage.updated', { date: new Date(page.updatedAt).toLocaleDateString(locale) }) }}
+          </span>
         </div>
       </div>
     </div>

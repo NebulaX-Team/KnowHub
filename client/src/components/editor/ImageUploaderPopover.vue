@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
 import { CloudUploadOutline } from '@vicons/ionicons5'
 import { uploadApi } from '@/api/upload'
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+const { t } = useI18n()
 
 // Debug: Watch for visibility changes
 watch(() => props.visible, (newVal) => {
@@ -76,11 +78,11 @@ const handleUpload = async (file: File) => {
       emit('close')
     } else {
       console.error('Invalid response format', res)
-      message.error('Upload failed: Invalid response')
+      message.error(t('editor.imageUploader.messages.invalidResponse'))
     }
   } catch (error) {
     console.error(error)
-    message.error('Upload failed')
+    message.error(t('editor.imageUploader.messages.uploadFailed'))
   } finally {
     loading.value = false
   }
@@ -135,21 +137,21 @@ onUnmounted(() => {
       <div class="input-group">
         <n-input
           v-model:value="imageUrl"
-          placeholder="Paste image URL..."
+          :placeholder="t('editor.imageUploader.placeholders.imageUrl')"
           @keydown.enter="handleUrlSubmit"
           size="small"
           autofocus
         />
-        <n-button @click="handleUrlSubmit" :disabled="!imageUrl" size="small">Embed</n-button>
+        <n-button @click="handleUrlSubmit" :disabled="!imageUrl" size="small">{{ t('editor.imageUploader.actions.embed') }}</n-button>
       </div>
-      <div class="divider">or</div>
+      <div class="divider">{{ t('editor.imageUploader.or') }}</div>
       <div class="upload-btn-wrapper">
         <input type="file" accept="image/*" @change="onFileChange" style="display: none" ref="fileInput" />
         <n-button @click="triggerUpload" :loading="loading" size="small" block>
           <template #icon>
             <n-icon :component="CloudUploadOutline" />
           </template>
-          Upload
+          {{ t('editor.imageUploader.actions.upload') }}
         </n-button>
       </div>
     </div>

@@ -16,7 +16,6 @@ const route = useRoute()
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('lg')
 
-const collapsed = ref(false)
 const showSidebar = computed(() => route.name !== 'Home')
 const isHome = computed(() => route.name === 'Home')
 
@@ -24,10 +23,7 @@ const isHome = computed(() => route.name === 'Home')
 const mobileSidebarOpen = ref(false)
 
 watch(isMobile, (mobile) => {
-  if (mobile) {
-    collapsed.value = true
-  } else {
-    collapsed.value = false
+  if (!mobile) {
     mobileSidebarOpen.value = false
   }
 }, { immediate: true })
@@ -40,11 +36,8 @@ watch(route, () => {
 })
 
 const toggleSidebar = () => {
-  if (isMobile.value) {
-    mobileSidebarOpen.value = !mobileSidebarOpen.value
-  } else {
-    collapsed.value = !collapsed.value
-  }
+  if (!isMobile.value) return
+  mobileSidebarOpen.value = !mobileSidebarOpen.value
 }
 
 // 使用页面标题composable
@@ -54,7 +47,7 @@ usePageTitle()
 <template>
   <n-layout class="main-layout">
     <TopNavigation 
-      :collapsed="isMobile ? !mobileSidebarOpen : collapsed" 
+      :collapsed="!mobileSidebarOpen"
       @update:collapsed="toggleSidebar"
       :is-mobile="isMobile"
     />
@@ -63,7 +56,6 @@ usePageTitle()
       <!-- Desktop Sidebar -->
       <Sidebar 
         v-if="showSidebar && !isMobile" 
-        v-model:collapsed="collapsed" 
       />
 
       <!-- Mobile Sidebar (Drawer) -->
@@ -75,9 +67,7 @@ usePageTitle()
       >
         <n-drawer-content body-content-style="padding: 0">
            <Sidebar 
-             :collapsed="false" 
              is-mobile
-             @update:collapsed="mobileSidebarOpen = false"
            />
         </n-drawer-content>
       </n-drawer>

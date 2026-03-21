@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, h } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NCard,
   NDataTable,
@@ -19,8 +20,15 @@ const route = useRoute()
 const message = useMessage()
 const adminStore = useAdminStore()
 const userStore = useUserStore()
+const { t } = useI18n()
 
-const title = computed(() => route.meta.title as string || 'User Management')
+const title = computed(() => {
+  const titleKey = route.meta.titleKey as string | undefined
+  if (titleKey) {
+    return t(titleKey)
+  }
+  return (route.meta.title as string) || t('settingsPage.users.defaultTitle')
+})
 const loading = computed(() => adminStore.loading)
 const users = computed(() => adminStore.users)
 const pagination = ref<PaginationProps>({
@@ -32,20 +40,20 @@ const pagination = ref<PaginationProps>({
 })
 
 // Columns for the data table
-const columns: DataTableColumns<AdminUser> = [
+const columns = computed<DataTableColumns<AdminUser>>(() => [
   {
-    title: 'Email',
+    title: t('settingsPage.users.email'),
     key: 'email',
     minWidth: 200
   },
   {
-    title: 'Display Name',
+    title: t('settingsPage.users.displayName'),
     key: 'displayName',
     minWidth: 150,
     render: (row) => row.displayName || '-'
   },
   {
-    title: 'Role',
+    title: t('settingsPage.users.role'),
     key: 'isAdmin',
     width: 120,
     render: (row) => {
@@ -56,13 +64,13 @@ const columns: DataTableColumns<AdminUser> = [
           size: 'small'
         },
         {
-          default: () => row.isAdmin ? 'Admin' : 'User'
+          default: () => row.isAdmin ? t('common.status.admin') : t('common.status.user')
         }
       )
     }
   },
   {
-    title: 'Status',
+    title: t('settingsPage.users.status'),
     key: 'isBanned',
     width: 120,
     render: (row) => {
@@ -73,25 +81,24 @@ const columns: DataTableColumns<AdminUser> = [
           size: 'small'
         },
         {
-          default: () => row.isBanned ? 'Banned' : 'Active'
+          default: () => row.isBanned ? t('common.status.banned') : t('common.status.active')
         }
       )
     }
   },
   {
-    title: 'Created At',
+    title: t('settingsPage.users.createdAt'),
     key: 'createdAt',
     minWidth: 180,
     render: (row) => new Date(row.createdAt).toLocaleString()
   },
   {
-    title: 'Actions',
+    title: t('settingsPage.users.actions'),
     key: 'actions',
     width: 200,
     render: (row: AdminUser): ReturnType<typeof h> => {
       const actions: ReturnType<typeof h>[] = []
 
-      // Toggle Ban (only if not self)
       if (row.id !== userStore.userId) {
         actions.push(
           h(
@@ -103,23 +110,22 @@ const columns: DataTableColumns<AdminUser> = [
               onClick: () => handleToggleBan(row)
             },
             {
-              default: () => row.isBanned ? 'Unban' : 'Ban'
+              default: () => row.isBanned ? t('settingsPage.users.actionUnban') : t('settingsPage.users.actionBan')
             }
           )
         )
 
-        // Delete (only if not self)
         actions.push(
           h(
             NPopconfirm,
             {
               onPositiveClick: () => handleDelete(row),
-              negativeText: 'Cancel',
-              positiveText: 'Confirm',
+              negativeText: t('common.actions.cancel'),
+              positiveText: t('common.actions.confirm'),
               placement: 'top-end'
             },
             {
-              default: () => 'Are you sure you want to delete this user?',
+              default: () => t('settingsPage.users.deleteConfirm'),
               trigger: (): ReturnType<typeof h> => h(
                 NButton,
                 {
@@ -128,7 +134,7 @@ const columns: DataTableColumns<AdminUser> = [
                   quaternary: true
                 },
                 {
-                  default: () => 'Delete'
+                  default: () => t('common.actions.delete')
                 }
               )
             }
@@ -139,7 +145,7 @@ const columns: DataTableColumns<AdminUser> = [
       return h(NSpace, { size: 'small' }, { default: () => actions })
     }
   }
-]
+])
 
 // Load users
 async function loadUsers() {
@@ -149,7 +155,7 @@ async function loadUsers() {
   })
 
   if (!result.success) {
-    message.error('Failed to load users')
+    message.error(t('settingsPage.users.loadFailed'))
   } else {
     pagination.value.itemCount = adminStore.pagination.total
     pagination.value.pageCount = Math.ceil(adminStore.pagination.total / (pagination.value.pageSize || 10))
@@ -159,32 +165,36 @@ async function loadUsers() {
 // Toggle ban status
 async function handleToggleBan(user: AdminUser) {
   if (user.id === userStore.userId) {
-    message.error('You cannot ban yourself')
+    message.error(t('settingsPage.users.cannotBanSelf'))
     return
   }
 
   const result = await adminStore.toggleBan(user.id, !user.isBanned)
 
   if (result.success) {
-    message.success(`User ${user.isBanned ? 'unbanned' : 'banned'} successfully`)
+    message.success(
+      user.isBanned
+        ? t('settingsPage.users.userUnbanned')
+        : t('settingsPage.users.userBanned')
+    )
   } else {
-    message.error(result.error || 'Failed to update ban status')
+    message.error(result.error || t('settingsPage.users.updateBanFailed'))
   }
 }
 
 // Delete user
 async function handleDelete(user: AdminUser) {
   if (user.id === userStore.userId) {
-    message.error('You cannot delete yourself')
+    message.error(t('settingsPage.users.cannotDeleteSelf'))
     return
   }
 
   const result = await adminStore.deleteUser(user.id)
 
   if (result.success) {
-    message.success('User deleted successfully')
+    message.success(t('settingsPage.users.userDeleted'))
   } else {
-    message.error(result.error || 'Failed to delete user')
+    message.error(result.error || t('settingsPage.users.deleteFailed'))
   }
 }
 

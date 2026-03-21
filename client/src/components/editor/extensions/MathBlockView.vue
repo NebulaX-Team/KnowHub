@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import katex from 'katex'
 
 const props = defineProps<{
@@ -14,6 +15,7 @@ const editing = ref(false)
 const latexInput = ref(props.node.attrs.latex || '')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const errorMsg = ref('')
+const { t } = useI18n()
 
 const renderedHtml = computed(() => {
   const tex = props.node.attrs.latex
@@ -26,8 +28,21 @@ const renderedHtml = computed(() => {
       output: 'htmlAndMathml',
     })
   } catch (e: any) {
-    errorMsg.value = e.message || 'Invalid LaTeX'
+    errorMsg.value = e.message || t('editor.math.invalidLatex')
     return ''
+  }
+})
+
+const previewHtml = computed(() => {
+  if (!latexInput.value) return ''
+  try {
+    return katex.renderToString(latexInput.value, {
+      displayMode: true,
+      throwOnError: false,
+      output: 'htmlAndMathml',
+    })
+  } catch {
+    return `<span class="math-error">${t('editor.math.invalidLatex')}</span>`
   }
 })
 
@@ -87,21 +102,21 @@ onMounted(() => {
         v-html="renderedHtml"
       />
       <div v-else class="math-block-placeholder">
-        Click to add formula
+        {{ t('editor.math.block.clickToAdd') }}
       </div>
     </div>
 
     <!-- Edit Mode -->
     <div v-else class="math-block-editor">
       <div class="math-block-editor-header">
-        <span class="math-block-label">Block Formula (LaTeX)</span>
-        <span class="math-block-hint">Enter to confirm · Esc to cancel</span>
+        <span class="math-block-label">{{ t('editor.math.block.label') }}</span>
+        <span class="math-block-hint">{{ t('editor.math.block.hint') }}</span>
       </div>
       <textarea
         ref="textareaRef"
         v-model="latexInput"
         class="math-block-textarea"
-        placeholder="E.g. \int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}"
+        :placeholder="t('editor.math.block.placeholder')"
         spellcheck="false"
         @keydown="handleKeydown"
         @blur="finishEdit"
@@ -112,13 +127,9 @@ onMounted(() => {
         <div
           v-if="latexInput"
           class="math-block-preview-content"
-          v-html="(() => {
-            try {
-              return katex.renderToString(latexInput, { displayMode: true, throwOnError: false, output: 'htmlAndMathml' })
-            } catch { return '<span class=&quot;math-error&quot;>Invalid LaTeX</span>' }
-          })()"
+          v-html="previewHtml"
         />
-        <div v-else class="math-block-preview-empty">Preview will appear here</div>
+        <div v-else class="math-block-preview-empty">{{ t('editor.math.block.previewEmpty') }}</div>
       </div>
     </div>
   </node-view-wrapper>

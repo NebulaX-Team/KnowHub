@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { pageApi } from '@/api/page'
 import type { Page, PageVersion } from '@/types'
 import { useLibraryStore } from './library'
+import { i18n } from '@/i18n'
 
 export interface PageTree extends Page {
   children?: PageTree[]
@@ -18,6 +19,8 @@ export interface PageState {
 }
 
 export const usePageStore = defineStore('page', () => {
+  const tr = (key: string) => i18n.global.t(key) as string
+
   // State
   const pages = ref<Page[]>([])
   const currentPage = ref<Page | null>(null)
@@ -104,7 +107,7 @@ export const usePageStore = defineStore('page', () => {
       const targetLibraryId = libraryId || libStore.currentLibraryId
 
       if (!targetLibraryId) {
-        setError('No library selected')
+        setError(tr('errors.library.noLibrarySelected'))
         setLoading(false)
         return
       }
@@ -114,10 +117,10 @@ export const usePageStore = defineStore('page', () => {
         setPages(response.data.items)
         pageTree.value = buildPageTree(response.data.items)
       } else {
-        setError(response.message || 'Failed to fetch pages')
+        setError(response.message || tr('errors.page.fetchPagesFailed'))
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch pages')
+      setError(err.response?.data?.message || tr('errors.page.fetchPagesFailed'))
     } finally {
       setLoading(false)
     }
@@ -133,10 +136,10 @@ export const usePageStore = defineStore('page', () => {
       if (response.code === 0) {
         setCurrentPage(response.data)
       } else {
-        setError(response.message || 'Failed to fetch page')
+        setError(response.message || tr('errors.page.fetchPageFailed'))
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch page')
+      setError(err.response?.data?.message || tr('errors.page.fetchPageFailed'))
     } finally {
       setLoading(false)
     }
@@ -165,12 +168,12 @@ export const usePageStore = defineStore('page', () => {
         
         return newPage
       } else {
-        setError(response.message || 'Failed to create page')
+        setError(response.message || tr('errors.page.createFailed'))
         return null
       }
     } catch (err: any) {
       console.error('Page creation error:', err)
-      setError(err.response?.data?.message || 'Failed to create page')
+      setError(err.response?.data?.message || tr('errors.page.createFailed'))
       return null
     } finally {
       setLoading(false)
@@ -208,11 +211,11 @@ export const usePageStore = defineStore('page', () => {
         
         return true
       } else {
-        setError(response.message || 'Failed to update page')
+        setError(response.message || tr('errors.page.updateFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update page')
+      setError(err.response?.data?.message || tr('errors.page.updateFailed'))
       return false
     } finally {
       setLoading(false)
@@ -239,11 +242,11 @@ export const usePageStore = defineStore('page', () => {
         
         return true
       } else {
-        setError(response.message || 'Failed to delete page')
+        setError(response.message || tr('errors.page.deleteFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete page')
+      setError(err.response?.data?.message || tr('errors.page.deleteFailed'))
       return false
     } finally {
       setLoading(false)
@@ -269,11 +272,11 @@ export const usePageStore = defineStore('page', () => {
         
         return true
       } else {
-        setError(response.message || 'Failed to move page')
+        setError(response.message || tr('errors.page.moveFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to move page')
+      setError(err.response?.data?.message || tr('errors.page.moveFailed'))
       return false
     } finally {
       setLoading(false)
@@ -290,10 +293,10 @@ export const usePageStore = defineStore('page', () => {
       if (response.code === 0) {
         setVersions(response.data)
       } else {
-        setError(response.message || 'Failed to fetch versions')
+        setError(response.message || tr('errors.page.fetchVersionsFailed'))
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch versions')
+      setError(err.response?.data?.message || tr('errors.page.fetchVersionsFailed'))
     } finally {
       setLoading(false)
     }
@@ -311,11 +314,11 @@ export const usePageStore = defineStore('page', () => {
         await fetchVersions(pageId)
         return true
       } else {
-        setError(response.message || 'Failed to create version')
+        setError(response.message || tr('errors.page.createVersionFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create version')
+      setError(err.response?.data?.message || tr('errors.page.createVersionFailed'))
       return false
     } finally {
       setLoading(false)
@@ -345,11 +348,11 @@ export const usePageStore = defineStore('page', () => {
         
         return true
       } else {
-        setError(response.message || 'Failed to restore version')
+        setError(response.message || tr('errors.page.restoreVersionFailed'))
         return false
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to restore version')
+      setError(err.response?.data?.message || tr('errors.page.restoreVersionFailed'))
       return false
     } finally {
       setLoading(false)

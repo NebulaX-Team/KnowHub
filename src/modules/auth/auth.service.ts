@@ -103,7 +103,10 @@ export class AuthService {
    * @param email 邮箱地址
    * @param type 验证码类型：'register' 或 'reset-password'
    */
-  async sendVerificationCode(email: string, type: 'register' | 'reset-password' = 'register'): Promise<{ success: boolean; message: string }> {
+  async sendVerificationCode(
+    email: string,
+    type: 'register' | 'reset-password' = 'register',
+  ): Promise<{ success: boolean; message: string; debugCode?: string }> {
     // 检查用户是否已存在
     const existingUser = await this.userService.findByEmail(email);
 
@@ -128,7 +131,11 @@ export class AuthService {
     // 如果没有配置SMTP，返回成功但不实际发送邮件（用于开发测试）
     if (!smtpConfig.host || !smtpConfig.port) {
       console.log(`[开发模式] 验证码: ${code} (10分钟内有效)`);
-      return { success: true, message: '验证码已生成（开发模式）' };
+      return {
+        success: true,
+        message: '验证码已生成（开发模式）',
+        debugCode: process.env.NODE_ENV === 'production' ? undefined : code,
+      };
     }
 
     try {
@@ -136,6 +143,9 @@ export class AuthService {
         host: smtpConfig.host,
         port: smtpConfig.port,
         secure: smtpConfig.secure,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
         auth: {
           user: smtpConfig.user,
           pass: smtpConfig.pass,
@@ -147,10 +157,10 @@ export class AuthService {
       let template: string;
 
       if (type === 'register') {
-        subject = smtpConfig.registerSubject || 'Schema - 邮箱验证码';
+        subject = smtpConfig.registerSubject || 'KnowHub - 邮箱验证码';
         template = smtpConfig.registerTemplate || this.getDefaultRegisterTemplate();
       } else {
-        subject = smtpConfig.resetPasswordSubject || 'Schema - 重置密码验证码';
+        subject = smtpConfig.resetPasswordSubject || 'KnowHub - 重置密码验证码';
         template = smtpConfig.resetPasswordTemplate || this.getDefaultResetPasswordTemplate();
       }
 

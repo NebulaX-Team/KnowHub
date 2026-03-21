@@ -1,16 +1,16 @@
 version: '3.8'
 
 services:
-  schema:
-    image: ghcr.io/lunadeertech/schema:latest
-    container_name: schema-app
+  knowhub:
+    image: ghcr.io/nebulax-team/knowhub:latest
+    container_name: knowhub-app
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DB_PATH=/app/db/schema-database.sqlite
+      - DB_PATH=/app/db/knowhub-database.sqlite
       - JWT_SECRET=!!!CHANGE_THIS!!!
       - JWT_EXPIRES_IN=7d
       - UPLOAD_DIR=/app/uploads
@@ -18,4 +18,3 @@ services:
     volumes:
       - ./db:/app/db
       - ./uploads:/app/uploads
-

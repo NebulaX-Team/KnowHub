@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import FloatingPanel from './FloatingPanel.vue'
 
 const props = defineProps<{
@@ -10,6 +11,7 @@ const emit = defineEmits<{
   (e: 'select', item: any): void
 }>()
 
+const { t } = useI18n()
 const selectedIndex = ref(0)
 
 watch(
@@ -79,7 +81,7 @@ defineExpose({
       </slot>
     </button>
     <div v-if="items.length === 0" class="navigable-item no-result">
-        <slot name="empty">No results</slot>
+      <slot name="empty">{{ t('editor.commandList.noResults') }}</slot>
     </div>
   </FloatingPanel>
 </template>

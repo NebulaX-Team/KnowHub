@@ -3,6 +3,14 @@ import { api } from './http'
 export interface SiteInfo {
   title: string
   description: string
+  titleI18n: {
+    'zh-CN': string
+    'en-US': string
+  }
+  descriptionI18n: {
+    'zh-CN': string
+    'en-US': string
+  }
   updatedAt: string
 }
 
@@ -14,6 +22,14 @@ export interface SiteInfoResponse {
 export interface UpdateSiteInfoDto {
   title?: string
   description?: string
+  titleI18n?: {
+    'zh-CN'?: string
+    'en-US'?: string
+  }
+  descriptionI18n?: {
+    'zh-CN'?: string
+    'en-US'?: string
+  }
 }
 
 export interface SmtpConfig {

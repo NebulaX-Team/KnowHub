@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, h, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { 
   NLayoutSider, 
   NTree, 
@@ -27,12 +28,7 @@ import { useLibraryStore } from '@/stores/library'
 import { usePageStore } from '@/stores/page'
 
 const props = defineProps<{
-  collapsed: boolean
   isMobile?: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:collapsed', value: boolean): void
 }>()
 
 const router = useRouter()
@@ -41,6 +37,7 @@ const libraryStore = useLibraryStore()
 const pageStore = usePageStore()
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 
 const componentType = computed(() => {
   return props.isMobile ? 'div' : NLayoutSider
@@ -54,14 +51,10 @@ const bindProps = computed(() => {
   }
   return {
     bordered: true,
-    'collapse-mode': 'width',
-    'collapsed-width': 64,
     width: 260,
-    collapsed: props.collapsed,
-    'show-trigger': true,
-    class: 'sidebar',
-    onCollapse: () => emit('update:collapsed', true),
-    onExpand: () => emit('update:collapsed', false)
+    'native-scrollbar': false,
+    'show-trigger': false,
+    class: 'sidebar'
   }
 })
 
@@ -92,10 +85,10 @@ const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const currentContextNode = ref<TreeOption | null>(null)
 
-const contextMenuOptions = [
-  { label: 'Rename', key: 'rename' },
-  { label: 'Delete', key: 'delete' }
-]
+const contextMenuOptions = computed(() => [
+  { label: t('sidebar.menu.rename'), key: 'rename' },
+  { label: t('sidebar.menu.delete'), key: 'delete' }
+])
 
 const librarySwitchOptions = computed(() => {
   const options: any[] = libraryStore.libraries.map(lib => ({
@@ -110,7 +103,7 @@ const librarySwitchOptions = computed(() => {
   }
   
   options.push({
-    label: 'New Library',
+    label: t('sidebar.menu.newLibrary'),
     key: 'create_new_library',
     icon: () => h(NIcon, null, { default: () => h(AddIcon) })
   })
@@ -180,7 +173,7 @@ const handleCreateLibrary = () => {
 
 const submitCreateLibrary = async () => {
   if (!createLibraryModel.value.title) {
-    message.warning('Please enter a library title')
+    message.warning(t('sidebar.messages.enterLibraryTitle'))
     return
   }
   
@@ -193,7 +186,7 @@ const submitCreateLibrary = async () => {
     })
     
     if (newLib) {
-      message.success('Library created successfully')
+      message.success(t('sidebar.messages.libraryCreated'))
       showCreateLibraryModal.value = false
       libraryStore.setCurrentLibrary(newLib)
       // Fetch pages for the new library (empty)
@@ -201,7 +194,7 @@ const submitCreateLibrary = async () => {
       router.push(`/library/${newLib.id}`)
     }
   } catch (error) {
-    message.error('Failed to create library')
+    message.error(t('sidebar.messages.createLibraryFailed'))
   } finally {
     createLibraryLoading.value = false
   }
@@ -209,7 +202,7 @@ const submitCreateLibrary = async () => {
 
 const handleCreatePage = () => {
   if (!libraryStore.currentLibrary) {
-    message.warning('Please select a library first')
+    message.warning(t('sidebar.messages.selectLibraryFirst'))
     return
   }
   createPageModel.value = { title: '' }
@@ -218,7 +211,7 @@ const handleCreatePage = () => {
 
 const submitCreatePage = async () => {
   if (!createPageModel.value.title) {
-    message.warning('Please enter a page title')
+    message.warning(t('sidebar.messages.enterPageTitle'))
     return
   }
   
@@ -232,15 +225,15 @@ const submitCreatePage = async () => {
     })
     
     if (newPage && newPage.id) {
-      message.success('Page created successfully')
+      message.success(t('sidebar.messages.pageCreated'))
       showCreatePageModal.value = false
       router.push(`/page/${newPage.id}`)
     } else {
       console.error('Page created but returned invalid data:', newPage)
-      message.error(pageStore.error || 'Failed to create page: Invalid response')
+      message.error(pageStore.error || t('sidebar.messages.createPageInvalid'))
     }
   } catch (error) {
-    message.error('Failed to create page')
+    message.error(t('sidebar.messages.createPageFailed'))
   } finally {
     createPageLoading.value = false
   }
@@ -287,7 +280,7 @@ const handleDrop = async ({ node, dragNode, dropPosition }: { node: TreeOption, 
       newParentId: newParentId,
       sortOrder: sortOrder
     })
-    message.success('Page moved successfully')
+    message.success(t('sidebar.messages.pageMoved'))
     
     // If dropped inside, expand the target node
     if (dropPosition === 'inside') {
@@ -297,7 +290,7 @@ const handleDrop = async ({ node, dragNode, dropPosition }: { node: TreeOption, 
     }
   } catch (e) {
     console.error('Move failed', e)
-    message.error('Failed to move page')
+    message.error(t('sidebar.messages.movePageFailed'))
   }
 }
 
@@ -309,14 +302,14 @@ const handleContextSelect = async (key: string) => {
   
   if (key === 'delete') {
     dialog.warning({
-      title: 'Delete Page',
-      content: 'Are you sure you want to delete this page? This action cannot be undone.',
-      positiveText: 'Delete',
-      negativeText: 'Cancel',
+      title: t('sidebar.dialog.deletePageTitle'),
+      content: t('sidebar.dialog.deletePageContent'),
+      positiveText: t('common.actions.delete'),
+      negativeText: t('common.actions.cancel'),
       onPositiveClick: async () => {
         try {
           await pageStore.deletePage(pageId)
-          message.success('Page deleted')
+          message.success(t('sidebar.messages.pageDeleted'))
           if (libraryStore.currentLibrary) {
             await pageStore.fetchPages(libraryStore.currentLibrary.id)
           }
@@ -324,7 +317,7 @@ const handleContextSelect = async (key: string) => {
             router.push(`/library/${libraryStore.currentLibrary?.id}`)
           }
         } catch (e) {
-          message.error('Failed to delete page')
+          message.error(t('sidebar.messages.deletePageFailed'))
         }
       }
     })
@@ -339,13 +332,13 @@ const submitRenamePage = async () => {
   renamePageLoading.value = true
   try {
     await pageStore.updatePage(renamePageModel.value.id, { title: renamePageModel.value.title })
-    message.success('Page renamed')
+    message.success(t('sidebar.messages.pageRenamed'))
     showRenamePageModal.value = false
     if (libraryStore.currentLibrary) {
       await pageStore.fetchPages(libraryStore.currentLibrary.id)
     }
   } catch (e) {
-    message.error('Failed to rename page')
+    message.error(t('sidebar.messages.renamePageFailed'))
   } finally {
     renamePageLoading.value = false
   }
@@ -421,10 +414,10 @@ watch(() => pageStore.currentPage, async (page) => {
   <component :is="componentType" v-bind="bindProps">
     <div class="sidebar-content">
       <!-- Library Switcher -->
-      <div class="library-section" v-if="(!collapsed || isMobile)">
+      <div class="library-section">
         <n-space vertical :size="12">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <n-text depth="3" class="section-label">LIBRARY</n-text>
+            <n-text depth="3" class="section-label">{{ t('sidebar.section.library') }}</n-text>
             <n-dropdown :options="librarySwitchOptions" @select="handleLibrarySwitch" trigger="click">
               <n-button text size="tiny">
                 <template #icon>
@@ -449,19 +442,15 @@ watch(() => pageStore.currentPage, async (page) => {
             </div>
           </div>
           <div v-else>
-             <n-text depth="3">No Library Selected</n-text>
+             <n-text depth="3">{{ t('sidebar.labels.noLibrarySelected') }}</n-text>
           </div>
         </n-space>
       </div>
-      <div class="collapsed-icon" v-else>
-        <span v-if="libraryStore.currentLibrary?.icon" style="font-size: 24px;">{{ libraryStore.currentLibrary.icon }}</span>
-        <n-icon v-else size="24"><LibraryIcon /></n-icon>
-      </div>
 
       <!-- Page Tree -->
-      <div class="page-tree-section" v-if="(!collapsed || isMobile)">
+      <div class="page-tree-section">
         <div class="tree-header">
-          <n-text depth="3" class="section-label">PAGES</n-text>
+          <n-text depth="3" class="section-label">{{ t('sidebar.section.pages') }}</n-text>
           <n-button text size="tiny" @click="handleCreatePage">
             <template #icon>
               <n-icon><AddIcon /></n-icon>
@@ -503,29 +492,29 @@ watch(() => pageStore.currentPage, async (page) => {
     <n-modal v-model:show="showCreateLibraryModal">
       <n-card
         style="width: 600px"
-        title="Create New Library"
+        :title="t('sidebar.modal.createLibraryTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
         aria-modal="true"
       >
         <n-form>
-          <n-form-item label="Title">
-            <n-input v-model:value="createLibraryModel.title" placeholder="Library Title" />
+          <n-form-item :label="t('sidebar.labels.title')">
+            <n-input v-model:value="createLibraryModel.title" :placeholder="t('sidebar.placeholders.libraryTitle')" />
           </n-form-item>
-          <n-form-item label="Description">
+          <n-form-item :label="t('sidebar.labels.description')">
             <n-input
               v-model:value="createLibraryModel.description"
               type="textarea"
-              placeholder="Description (Optional)"
+              :placeholder="t('sidebar.placeholders.libraryDescriptionOptional')"
             />
           </n-form-item>
         </n-form>
         <template #footer>
           <n-space justify="end">
-            <n-button @click="showCreateLibraryModal = false">Cancel</n-button>
+            <n-button @click="showCreateLibraryModal = false">{{ t('common.actions.cancel') }}</n-button>
             <n-button type="primary" :loading="createLibraryLoading" @click="submitCreateLibrary">
-              Create
+              {{ t('sidebar.actions.create') }}
             </n-button>
           </n-space>
         </template>
@@ -536,22 +525,22 @@ watch(() => pageStore.currentPage, async (page) => {
     <n-modal v-model:show="showCreatePageModal">
       <n-card
         style="width: 600px"
-        title="Create New Page"
+        :title="t('sidebar.modal.createPageTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
         aria-modal="true"
       >
         <n-form>
-          <n-form-item label="Title">
-            <n-input v-model:value="createPageModel.title" placeholder="Page Title" @keyup.enter="submitCreatePage" />
+          <n-form-item :label="t('sidebar.labels.title')">
+            <n-input v-model:value="createPageModel.title" :placeholder="t('sidebar.placeholders.pageTitle')" @keyup.enter="submitCreatePage" />
           </n-form-item>
         </n-form>
         <template #footer>
           <n-space justify="end">
-            <n-button @click="showCreatePageModal = false">Cancel</n-button>
+            <n-button @click="showCreatePageModal = false">{{ t('common.actions.cancel') }}</n-button>
             <n-button type="primary" :loading="createPageLoading" @click="submitCreatePage">
-              Create
+              {{ t('sidebar.actions.create') }}
             </n-button>
           </n-space>
         </template>
@@ -562,22 +551,22 @@ watch(() => pageStore.currentPage, async (page) => {
     <n-modal v-model:show="showRenamePageModal">
       <n-card
         style="width: 600px"
-        title="Rename Page"
+        :title="t('sidebar.modal.renamePageTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
         aria-modal="true"
       >
         <n-form>
-          <n-form-item label="Title">
-            <n-input v-model:value="renamePageModel.title" placeholder="Page Title" @keyup.enter="submitRenamePage" />
+          <n-form-item :label="t('sidebar.labels.title')">
+            <n-input v-model:value="renamePageModel.title" :placeholder="t('sidebar.placeholders.pageTitle')" @keyup.enter="submitRenamePage" />
           </n-form-item>
         </n-form>
         <template #footer>
           <n-space justify="end">
-            <n-button @click="showRenamePageModal = false">Cancel</n-button>
+            <n-button @click="showRenamePageModal = false">{{ t('common.actions.cancel') }}</n-button>
             <n-button type="primary" :loading="renamePageLoading" @click="submitRenamePage">
-              Rename
+              {{ t('sidebar.actions.rename') }}
             </n-button>
           </n-space>
         </template>
@@ -674,11 +663,5 @@ watch(() => pageStore.currentPage, async (page) => {
   align-items: center;
   margin-bottom: 8px;
   padding-left: 8px;
-}
-
-.collapsed-icon {
-  display: flex;
-  justify-content: center;
-  padding-top: 20px;
 }
 </style>

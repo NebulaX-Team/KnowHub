@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NDrawer, NDrawerContent, NSwitch, NInput, NButton, NSpace, NText, useMessage } from 'naive-ui'
 import { pageApi } from '@/api/page'
 import { libraryApi } from '@/api/library'
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+const { t } = useI18n()
 const isPublic = ref(false)
 const publicSlug = ref('')
 const loading = ref(false)
@@ -60,10 +62,10 @@ async function handlePublicChange(value: boolean) {
       publicSlug.value = updatedData.publicSlug
     }
     emit('update', updatedData)
-    message.success(value ? 'Public access enabled' : 'Public access disabled')
+    message.success(value ? t('publicAccess.messages.enabled') : t('publicAccess.messages.disabled'))
   } catch (error) {
     console.error('handlePublicChange error', error);
-    message.error('Failed to update public status')
+    message.error(t('publicAccess.messages.updateFailed'))
     isPublic.value = !value // Revert
   } finally {
     loading.value = false
@@ -74,37 +76,37 @@ async function copyLink() {
   if (!publicLink.value) return
   const success = await copyToClipboard(publicLink.value)
   if (success) {
-    message.success('Link copied to clipboard')
+    message.success(t('publicAccess.messages.copySuccess'))
   } else {
-    message.error('Failed to copy link')
+    message.error(t('publicAccess.messages.copyFailed'))
   }
 }
 </script>
 
 <template>
   <NDrawer :show="show" @update:show="emit('update:show', $event)" width="400">
-    <NDrawerContent title="Public Access Settings">
+    <NDrawerContent :title="t('publicAccess.title')">
       <NSpace vertical size="large">
         <NSpace justify="space-between" align="center">
-          <NText>Public Access</NText>
+          <NText>{{ t('publicAccess.publicAccess') }}</NText>
           <NSwitch :value="isPublic" @update:value="handlePublicChange" :loading="loading" />
         </NSpace>
 
         <div v-if="isPublic">
-          <NText depth="3" class="label">Public Link</NText>
+          <NText depth="3" class="label">{{ t('publicAccess.publicLink') }}</NText>
           <NSpace>
-            <NInput :value="publicLink" readonly placeholder="No public link generated" />
-            <NButton @click="copyLink" :disabled="!publicLink">Copy</NButton>
+            <NInput :value="publicLink" readonly :placeholder="t('publicAccess.noLinkGenerated')" />
+            <NButton @click="copyLink" :disabled="!publicLink">{{ t('publicAccess.copy') }}</NButton>
           </NSpace>
         </div>
 
         <div class="notes">
-          <NText strong>Notes:</NText>
+          <NText strong>{{ t('publicAccess.notesTitle') }}</NText>
           <ul>
-            <li>When you change the public status of a library or page, all its child pages will automatically follow the setting.</li>
-            <li>If a child page is not public, it will not appear in the sidebar of the public page.</li>
-            <li>If a page is public but its parent is not, the sidebar will not show the parent hierarchy.</li>
-            <li>Public pages are read-only for everyone.</li>
+            <li>{{ t('publicAccess.notes.item1') }}</li>
+            <li>{{ t('publicAccess.notes.item2') }}</li>
+            <li>{{ t('publicAccess.notes.item3') }}</li>
+            <li>{{ t('publicAccess.notes.item4') }}</li>
           </ul>
         </div>
       </NSpace>

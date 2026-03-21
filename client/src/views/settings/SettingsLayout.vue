@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { h, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NLayout,
   NLayoutSider,
@@ -29,6 +30,7 @@ import { useUserStore } from '@/stores/user'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 // 使用 usePageTitle 来管理页面标题
 usePageTitle()
@@ -44,49 +46,49 @@ function renderIcon(icon: any) {
 const menuOptions = computed<MenuOption[]>(() => {
   const options: MenuOption[] = [
     {
-      label: 'Personal Information',
+      label: t('settings.groupPersonal'),
       key: 'personal',
       type: 'group',
       children: [
         {
-          label: 'Account Information',
+          label: t('settings.profile'),
           key: 'profile',
           icon: renderIcon(PersonOutline)
         },
         {
-          label: 'Password & Security',
+          label: t('settings.security'),
           key: 'security',
           icon: renderIcon(LockClosedOutline)
         }
       ]
     },
     {
-      label: 'Document Management',
+      label: t('settings.groupDocuments'),
       key: 'documents',
       type: 'group',
       children: [
         {
-          label: 'Libraries',
+          label: t('settings.libraries'),
           key: 'libraries',
           icon: renderIcon(LibraryOutline)
         },
         {
-          label: 'Pages',
+          label: t('settings.pages'),
           key: 'pages',
           icon: renderIcon(DocumentTextOutline)
         },
         {
-          label: 'Archived',
+          label: t('settings.archived'),
           key: 'archived',
           icon: renderIcon(ArchiveOutline)
         },
         {
-          label: 'Image Resources',
+          label: t('settings.assets'),
           key: 'assets',
           icon: renderIcon(ImagesOutline)
         },
         {
-          label: 'Templates',
+          label: t('settings.templates'),
           key: 'templates',
           icon: renderIcon(CopyOutline)
         }
@@ -96,27 +98,27 @@ const menuOptions = computed<MenuOption[]>(() => {
 
   if (isAdmin.value) {
     options.push({
-      label: 'System Settings',
+      label: t('settings.groupSystem'),
       key: 'system',
       type: 'group',
       children: [
         {
-          label: 'Site Information',
+          label: t('settings.siteInfo'),
           key: 'site-info',
           icon: renderIcon(InformationCircleOutline)
         },
         {
-          label: 'SMTP Configuration',
+          label: t('settings.smtp'),
           key: 'smtp',
           icon: renderIcon(MailOutline)
         },
         {
-          label: 'Access Configuration',
+          label: t('settings.access'),
           key: 'access',
           icon: renderIcon(ShieldCheckmarkOutline)
         },
         {
-          label: 'User Management',
+          label: t('settings.users'),
           key: 'users',
           icon: renderIcon(PeopleOutline)
         }
@@ -151,7 +153,7 @@ function handleUpdateValue(key: string) {
         :native-scrollbar="false"
         class="settings-sider"
       >
-        <div class="settings-title" v-if="!collapsed">Settings</div>
+        <div class="settings-title" v-if="!collapsed">{{ t('settings.title') }}</div>
         <n-menu
           :collapsed="collapsed"
           :collapsed-width="64"

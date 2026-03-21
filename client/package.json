@@ -1,7 +1,7 @@
 {
-  "name": "@schema/client",
+  "name": "@knowhub/client",
   "version": "1.0.0",
-  "description": "Schema frontend application",
+  "description": "KnowHub frontend application",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -39,6 +39,7 @@
     "pinia": "^2.3.1",
     "tippy.js": "^6.3.7",
     "vue": "^3.4.0",
+    "vue-i18n": "^9.14.0",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {

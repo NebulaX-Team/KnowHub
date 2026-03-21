@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NCard,
   NDataTable,
@@ -33,6 +34,7 @@ import type { Page, Library } from '@/types'
 
 const router = useRouter()
 const message = useMessage()
+const { t } = useI18n()
 
 const loading = ref(false)
 const pages = ref<Page[]>([])
@@ -48,7 +50,7 @@ const pagination = ref<PaginationProps>({
   itemCount: 0,
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100],
-  prefix: ({ itemCount }) => `${itemCount} pages total`
+  prefix: ({ itemCount }) => t('settingsPage.pages.pagination.total', { count: itemCount })
 })
 
 // Stats
@@ -60,19 +62,19 @@ const stats = computed(() => {
 })
 
 const libraryOptions = computed(() => {
-  const options = [{ label: 'All Libraries', value: '' }]
+  const options = [{ label: t('settingsPage.pages.filters.allLibraries'), value: '' }]
   libraries.value.forEach(lib => {
     options.push({ label: `${lib.icon || '📁'} ${lib.title}`, value: lib.id })
   })
   return options
 })
 
-const sortOptions = [
-  { label: 'Last Updated', value: 'updatedAt' },
-  { label: 'Created Date', value: 'createdAt' },
-  { label: 'Title', value: 'title' },
-  { label: 'Last Viewed', value: 'lastViewedAt' }
-]
+const sortOptions = computed(() => [
+  { label: t('settingsPage.pages.filters.sortLastUpdated'), value: 'updatedAt' },
+  { label: t('settingsPage.pages.filters.sortCreatedDate'), value: 'createdAt' },
+  { label: t('settingsPage.pages.filters.sortTitle'), value: 'title' },
+  { label: t('settingsPage.pages.filters.sortLastViewed'), value: 'lastViewedAt' }
+])
 
 const filteredPages = computed(() => {
   if (!searchQuery.value) return pages.value
@@ -83,9 +85,9 @@ const filteredPages = computed(() => {
   )
 })
 
-const columns: DataTableColumns<Page> = [
+const columns = computed<DataTableColumns<Page>>(() => [
   {
-    title: 'Page',
+    title: t('settingsPage.pages.table.page'),
     key: 'title',
     minWidth: 200,
     render: (row) => {
@@ -94,13 +96,13 @@ const columns: DataTableColumns<Page> = [
           ? h('span', { style: 'font-size: 16px; flex-shrink: 0;' }, row.icon)
           : h(NIcon, { size: 16, color: '#999' }, { default: () => h(DocumentTextOutline) }),
         h('div', { style: 'min-width: 0;' }, [
-          h(NEllipsis, { style: 'font-weight: 500;' }, { default: () => row.title || 'Untitled' })
+          h(NEllipsis, { style: 'font-weight: 500;' }, { default: () => row.title || t('settingsPage.pages.table.untitled') })
         ])
       ])
     }
   },
   {
-    title: 'Library',
+    title: t('settingsPage.pages.table.library'),
     key: 'libraryTitle',
     width: 160,
     render: (row) => {
@@ -109,7 +111,7 @@ const columns: DataTableColumns<Page> = [
     }
   },
   {
-    title: 'Public',
+    title: t('settingsPage.pages.table.public'),
     key: 'isPublic',
     width: 80,
     align: 'center',
@@ -117,26 +119,27 @@ const columns: DataTableColumns<Page> = [
       type: row.isPublic ? 'success' : 'default',
       size: 'small',
       bordered: false
-    }, { default: () => row.isPublic ? 'Yes' : 'No' })
+    }, { default: () => row.isPublic ? t('common.status.yes') : t('common.status.no') })
   },
   {
-    title: 'Created',
+    title: t('settingsPage.pages.table.created'),
     key: 'createdAt',
     width: 120,
     render: (row) => new Date(row.createdAt).toLocaleDateString()
   },
   {
-    title: 'Updated',
+    title: t('settingsPage.pages.table.updated'),
     key: 'updatedAt',
     width: 120,
     render: (row) => new Date(row.updatedAt).toLocaleDateString()
   },
   {
-    title: 'Actions',
+    title: t('settingsPage.pages.table.actions'),
     key: 'actions',
     width: 120,
     fixed: 'right',
     render: (row) => {
+      const rowTitle = row.title || t('settingsPage.pages.table.untitled')
       return h(NSpace, { size: 'small' }, {
         default: () => [
           h(NTooltip, null, {
@@ -144,14 +147,14 @@ const columns: DataTableColumns<Page> = [
               size: 'small', quaternary: true, circle: true,
               onClick: () => navigateToPage(row)
             }, { icon: () => h(NIcon, { component: OpenOutline }) }),
-            default: () => 'Open Page'
+            default: () => t('settingsPage.pages.openPage')
           }),
           h(NPopconfirm, {
             onPositiveClick: () => handleDelete(row),
-            positiveText: 'Delete',
-            negativeText: 'Cancel'
+            positiveText: t('common.actions.delete'),
+            negativeText: t('common.actions.cancel')
           }, {
-            default: () => `Delete "${row.title || 'Untitled'}"? Child pages will also be deleted.`,
+            default: () => t('settingsPage.pages.confirmDelete', { title: rowTitle }),
             trigger: () => h(NButton, {
               size: 'small', quaternary: true, circle: true, type: 'error'
             }, { icon: () => h(NIcon, { component: TrashOutline }) })
@@ -160,7 +163,7 @@ const columns: DataTableColumns<Page> = [
       })
     }
   }
-]
+])
 
 async function loadLibraries() {
   try {
@@ -190,10 +193,10 @@ async function loadPages() {
       pages.value = response.data.items
       pagination.value.itemCount = response.data.total
     } else {
-      message.error('Failed to load pages')
+      message.error(t('settingsPage.pages.messages.loadFailed'))
     }
   } catch {
-    message.error('Failed to load pages')
+    message.error(t('settingsPage.pages.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -203,13 +206,13 @@ async function handleDelete(page: Page) {
   try {
     const response = await pageApi.deletePage(page.id)
     if (response.code === 0) {
-      message.success('Page deleted successfully')
+      message.success(t('settingsPage.pages.messages.deleteSuccess'))
       await loadPages()
     } else {
-      message.error('Failed to delete page')
+      message.error(t('settingsPage.pages.messages.deleteFailed'))
     }
   } catch {
-    message.error('Failed to delete page')
+    message.error(t('settingsPage.pages.messages.deleteFailed'))
   }
 }
 
@@ -244,17 +247,17 @@ onMounted(() => {
   <div class="settings-page">
     <div class="header">
       <div>
-        <h2>Pages</h2>
-        <p class="description">Browse and manage all pages across your libraries</p>
+        <h2>{{ t('settingsPage.pages.title') }}</h2>
+        <p class="description">{{ t('settingsPage.pages.description') }}</p>
       </div>
     </div>
 
     <div class="stats-row">
       <NCard size="small" class="stat-card">
-        <NStatistic label="Total Pages" :value="stats.total" />
+        <NStatistic :label="t('settingsPage.pages.stats.totalPages')" :value="stats.total" />
       </NCard>
       <NCard size="small" class="stat-card">
-        <NStatistic label="Public Pages" :value="stats.publicCount" />
+        <NStatistic :label="t('settingsPage.pages.stats.publicPages')" :value="stats.publicCount" />
       </NCard>
     </div>
 
@@ -264,7 +267,7 @@ onMounted(() => {
           <NSpace style="flex-wrap: wrap; gap: 8px">
             <NInput
               v-model:value="searchQuery"
-              placeholder="Search pages..."
+              :placeholder="t('settingsPage.pages.searchPlaceholder')"
               clearable
               style="width: 240px"
             >
@@ -275,7 +278,7 @@ onMounted(() => {
             <NSelect
               v-model:value="filterLibraryId"
               :options="libraryOptions"
-              placeholder="Filter by library"
+              :placeholder="t('settingsPage.pages.filters.filterByLibrary')"
               clearable
               style="width: 200px"
             />
@@ -294,19 +297,19 @@ onMounted(() => {
             </NButton>
           </NSpace>
           <NButton @click="loadPages" :loading="loading" secondary>
-            Refresh
+            {{ t('common.actions.refresh') }}
           </NButton>
         </NSpace>
       </div>
 
       <NSpin :show="loading">
         <div v-if="filteredPages.length === 0 && !loading" class="empty-state">
-          <NEmpty description="No pages found">
+          <NEmpty :description="t('settingsPage.pages.noPages')">
             <template #extra>
               <NText depth="3">
                 {{ searchQuery || filterLibraryId
-                  ? 'Try adjusting your filters or search query'
-                  : 'Create pages in your libraries to see them here' }}
+                  ? t('settingsPage.pages.emptyAdjust')
+                  : t('settingsPage.pages.emptyCreateHint') }}
               </NText>
             </template>
           </NEmpty>

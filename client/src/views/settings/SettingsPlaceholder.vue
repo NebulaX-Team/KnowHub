@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { NCard, NEmpty } from 'naive-ui'
 
 const route = useRoute()
-const title = computed(() => route.meta.title as string || 'Settings')
+const { t } = useI18n()
+const title = computed(() => {
+  const titleKey = route.meta.titleKey as string | undefined
+  if (titleKey) {
+    return t(titleKey)
+  }
+  return (route.meta.title as string) || t('settings.title')
+})
 </script>
 
 <template>
@@ -13,9 +21,9 @@ const title = computed(() => route.meta.title as string || 'Settings')
       <h2>{{ title }}</h2>
     </div>
     <n-card>
-      <n-empty description="This feature is coming soon">
+      <n-empty :description="t('settingsPage.placeholder.comingSoon')">
         <template #extra>
-          The implementation for {{ title }} is currently pending.
+          {{ t('settingsPage.placeholder.pendingImplementation', { title }) }}
         </template>
       </n-empty>
     </n-card>

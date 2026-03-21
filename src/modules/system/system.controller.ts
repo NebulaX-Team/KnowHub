@@ -4,6 +4,7 @@ import {
   Put,
   Post,
   Body,
+  Headers,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@/modules/auth/jwt-auth.guard';
@@ -18,14 +19,17 @@ export class SystemController {
 
   // Public endpoint - no auth required
   @Get('site-info')
-  async getSiteInfo() {
-    return this.systemService.getSiteInfo();
+  async getSiteInfo(@Headers('accept-language') acceptLanguage?: string) {
+    return this.systemService.getSiteInfo(acceptLanguage);
   }
 
   @Put('site-info')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async updateSiteInfo(@Body() updateSiteInfoDto: UpdateSiteInfoDto) {
-    return this.systemService.updateSiteInfo(updateSiteInfoDto);
+  async updateSiteInfo(
+    @Body() updateSiteInfoDto: UpdateSiteInfoDto,
+    @Headers('accept-language') acceptLanguage?: string
+  ) {
+    return this.systemService.updateSiteInfo(updateSiteInfoDto, acceptLanguage);
   }
 
   @Get('smtp-config')

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { userApi } from '@/api/user'
 import {
@@ -22,6 +23,7 @@ const userStore = useUserStore()
 const message = useMessage()
 const dialog = useDialog()
 const router = useRouter()
+const { t, locale } = useI18n()
 
 // ---- Change Password ----
 const passwordFormRef = ref<FormInst | null>(null)
@@ -32,27 +34,27 @@ const passwordModel = reactive({
   confirmPassword: ''
 })
 
-const passwordRules: FormRules = {
+const passwordRules = computed<FormRules>(() => ({
   currentPassword: [
-    { required: true, message: 'Please enter your current password', trigger: 'blur' }
+    { required: true, message: t('settingsPage.security.validation.currentPasswordRequired'), trigger: 'blur' }
   ],
   newPassword: [
-    { required: true, message: 'Please enter a new password', trigger: 'blur' },
-    { min: 6, max: 50, message: 'Password must be 6-50 characters', trigger: 'blur' }
+    { required: true, message: t('settingsPage.security.validation.newPasswordRequired'), trigger: 'blur' },
+    { min: 6, max: 50, message: t('settingsPage.security.validation.newPasswordLength'), trigger: 'blur' }
   ],
   confirmPassword: [
-    { required: true, message: 'Please confirm your new password', trigger: 'blur' },
+    { required: true, message: t('settingsPage.security.validation.confirmPasswordRequired'), trigger: 'blur' },
     {
       validator: (_rule: any, value: string) => {
         if (value !== passwordModel.newPassword) {
-          return new Error('Passwords do not match')
+          return new Error(t('settingsPage.security.validation.passwordNotMatch'))
         }
         return true
       },
       trigger: 'blur'
     }
   ]
-}
+}))
 
 async function handleChangePassword() {
   try {
@@ -68,13 +70,13 @@ async function handleChangePassword() {
       newPassword: passwordModel.newPassword
     })
     if (response.code === 0) {
-      message.success('Password changed successfully')
+      message.success(t('settingsPage.security.passwordChanged'))
       passwordModel.currentPassword = ''
       passwordModel.newPassword = ''
       passwordModel.confirmPassword = ''
     }
   } catch (error: any) {
-    message.error(error.response?.data?.message || 'Failed to change password')
+    message.error(error.response?.data?.message || t('settingsPage.security.changePasswordFailed'))
   } finally {
     passwordLoading.value = false
   }
@@ -85,7 +87,7 @@ const accountEmail = computed(() => userStore.user?.email || '')
 const accountCreated = computed(() => {
   const user = userStore.user as any
   if (!user?.createdAt) return '-'
-  return new Date(user.createdAt).toLocaleDateString('en-US', {
+  return new Date(user.createdAt).toLocaleDateString(locale.value, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -98,10 +100,10 @@ const deleteLoading = ref(false)
 
 function handleDeleteAccount() {
   dialog.warning({
-    title: 'Delete Account',
-    content: 'This action is irreversible. All your data including libraries, pages, and uploaded files will be permanently deleted. Are you sure you want to continue?',
-    positiveText: 'Delete My Account',
-    negativeText: 'Cancel',
+    title: t('settingsPage.security.deleteDialog.title'),
+    content: t('settingsPage.security.deleteDialog.content'),
+    positiveText: t('settingsPage.security.deleteDialog.positiveText'),
+    negativeText: t('common.actions.cancel'),
     positiveButtonProps: { type: 'error' },
     onPositiveClick: () => {
       showDeleteConfirm()
@@ -111,36 +113,36 @@ function handleDeleteAccount() {
 
 function showDeleteConfirm() {
   dialog.error({
-    title: 'Confirm Account Deletion',
+    title: t('settingsPage.security.confirmDialog.title'),
     content: () =>
       h('div', { style: 'margin-top: 8px' }, [
-        h('p', { style: 'margin-bottom: 12px; color: var(--n-text-color)' }, 'Enter your password to confirm:'),
+        h('p', { style: 'margin-bottom: 12px; color: var(--n-text-color)' }, t('settingsPage.security.confirmDialog.passwordPrompt')),
         h(NInput, {
           type: 'password',
           showPasswordOn: 'click',
-          placeholder: 'Your password',
+          placeholder: t('settingsPage.security.confirmDialog.passwordPlaceholder'),
           value: deletePassword.value,
           onUpdateValue: (v: string) => { deletePassword.value = v }
         })
       ]),
-    positiveText: 'Permanently Delete',
-    negativeText: 'Cancel',
+    positiveText: t('settingsPage.security.confirmDialog.positiveText'),
+    negativeText: t('common.actions.cancel'),
     positiveButtonProps: { type: 'error', loading: deleteLoading.value },
     onPositiveClick: async () => {
       if (!deletePassword.value) {
-        message.warning('Please enter your password')
+        message.warning(t('settingsPage.security.passwordRequiredForDelete'))
         return false
       }
       deleteLoading.value = true
       try {
         const response = await userApi.deleteAccount(deletePassword.value)
         if (response.code === 0) {
-          message.success('Account deleted')
+          message.success(t('settingsPage.security.deleteSuccess'))
           userStore.logout()
           router.push('/login')
         }
       } catch (error: any) {
-        message.error(error.response?.data?.message || 'Failed to delete account')
+        message.error(error.response?.data?.message || t('settingsPage.security.deleteFailed'))
         return false
       } finally {
         deleteLoading.value = false
@@ -152,18 +154,16 @@ function showDeleteConfirm() {
     }
   })
 }
-
-import { h } from 'vue'
 </script>
 
 <template>
   <div class="settings-content">
     <div class="settings-header">
-      <h2>Password & Security</h2>
+      <h2>{{ t('settingsPage.security.title') }}</h2>
     </div>
 
     <!-- Change Password -->
-    <n-card title="Change Password" class="section-card">
+    <n-card :title="t('settingsPage.security.changePassword')" class="section-card">
       <n-form
         ref="passwordFormRef"
         :model="passwordModel"
@@ -171,30 +171,30 @@ import { h } from 'vue'
         label-placement="top"
         class="form-wrapper"
       >
-        <n-form-item label="Current Password" path="currentPassword">
+        <n-form-item :label="t('settingsPage.security.currentPassword')" path="currentPassword">
           <n-input
             v-model:value="passwordModel.currentPassword"
             type="password"
             show-password-on="click"
-            placeholder="Enter your current password"
+            :placeholder="t('settingsPage.security.currentPasswordPlaceholder')"
           />
         </n-form-item>
 
-        <n-form-item label="New Password" path="newPassword">
+        <n-form-item :label="t('settingsPage.security.newPassword')" path="newPassword">
           <n-input
             v-model:value="passwordModel.newPassword"
             type="password"
             show-password-on="click"
-            placeholder="Enter a new password (min 6 characters)"
+            :placeholder="t('settingsPage.security.newPasswordPlaceholder')"
           />
         </n-form-item>
 
-        <n-form-item label="Confirm New Password" path="confirmPassword">
+        <n-form-item :label="t('settingsPage.security.confirmNewPassword')" path="confirmPassword">
           <n-input
             v-model:value="passwordModel.confirmPassword"
             type="password"
             show-password-on="click"
-            placeholder="Confirm your new password"
+            :placeholder="t('settingsPage.security.confirmNewPasswordPlaceholder')"
           />
         </n-form-item>
 
@@ -205,19 +205,19 @@ import { h } from 'vue'
             @click="handleChangePassword"
             size="large"
           >
-            Update Password
+            {{ t('settingsPage.security.updatePassword') }}
           </n-button>
         </div>
       </n-form>
     </n-card>
 
     <!-- Account Information -->
-    <n-card title="Account Information" class="section-card">
+    <n-card :title="t('settingsPage.security.accountInfo')" class="section-card">
       <n-descriptions label-placement="left" bordered :column="1">
-        <n-descriptions-item label="Email">
+        <n-descriptions-item :label="t('common.form.email')">
           {{ accountEmail }}
         </n-descriptions-item>
-        <n-descriptions-item label="Account Created">
+        <n-descriptions-item :label="t('settingsPage.security.accountCreated')">
           {{ accountCreated }}
         </n-descriptions-item>
       </n-descriptions>
@@ -226,13 +226,13 @@ import { h } from 'vue'
     <!-- Danger Zone -->
     <n-card class="section-card danger-zone">
       <template #header>
-        <span class="danger-title">Danger Zone</span>
+        <span class="danger-title">{{ t('settingsPage.security.dangerZone') }}</span>
       </template>
       <n-alert type="error" :bordered="false">
-        <p style="margin: 0 0 4px 0; font-weight: 500;">Delete Account</p>
-        <p style="margin: 0 0 12px 0;">Once you delete your account, there is no going back. All your libraries, pages, and uploaded images will be permanently removed.</p>
+        <p style="margin: 0 0 4px 0; font-weight: 500;">{{ t('settingsPage.security.deleteAccount') }}</p>
+        <p style="margin: 0 0 12px 0;">{{ t('settingsPage.security.dangerDescription') }}</p>
         <n-button type="error" ghost @click="handleDeleteAccount">
-          Delete Account
+          {{ t('settingsPage.security.deleteAccount') }}
         </n-button>
       </n-alert>
     </n-card>

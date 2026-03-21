@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Schema Project Packaging Script
+ * KnowHub Project Packaging Script
  * Features:
  * 1. Build backend (NestJS)
  * 2. Build frontend (Vue 3 + Vite)
  * 3. Move frontend build files to dist/frontend directory
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { detectPackageManager, getRunScriptInvocation, runScript } = require('./scripts/package-manager');
 
 // Configuration
 const CONFIG = {
@@ -52,20 +52,16 @@ function warn(message) {
   log(`⚠️  ${message}`, 'yellow');
 }
 
-// Execute command
-function runCommand(command, cwd, errorMessage) {
-  try {
-    log(`Executing command: ${command}`, 'blue');
-    execSync(command, { 
-      cwd, 
-      stdio: 'inherit',
-      shell: 'cmd.exe' // Windows uses cmd.exe
-    });
+// Execute package.json script
+function runPackageScript(scriptName, cwd, packageManager, errorMessage) {
+  const { command, args } = getRunScriptInvocation(packageManager, scriptName);
+  log(`Executing command: ${command} ${args.join(' ')}`, 'blue');
+  const result = runScript({ packageManager, scriptName, cwd });
+  if (result.status === 0) {
     return true;
-  } catch (err) {
-    error(errorMessage || `Command failed: ${command}`);
-    return false;
   }
+  error(errorMessage || `Command failed: ${command} ${args.join(' ')}`);
+  return false;
 }
 
 // Clean dist directory
@@ -80,11 +76,12 @@ function cleanDist() {
 }
 
 // Build backend
-function buildBackend() {
+function buildBackend(packageManager) {
   info('Starting backend build...');
-  const result = runCommand(
-    'pnpm build',
+  const result = runPackageScript(
+    'build',
     CONFIG.backendDir,
+    packageManager,
     'Backend build failed'
   );
   if (result) {
@@ -94,11 +91,12 @@ function buildBackend() {
 }
 
 // Build frontend
-function buildFrontend() {
+function buildFrontend(packageManager) {
   info('Starting frontend build...');
-  const result = runCommand(
-    'pnpm build',
+  const result = runPackageScript(
+    'build',
     CONFIG.frontendDir,
+    packageManager,
     'Frontend build failed'
   );
   if (result) {
@@ -136,7 +134,7 @@ function moveFrontendBuild() {
 // Main function
 function main() {
   log('========================================', 'cyan');
-  log('Schema Project Packaging Script', 'cyan');
+  log('KnowHub Project Packaging Script', 'cyan');
   log('========================================', 'cyan');
   
   // Check working directory
@@ -144,16 +142,19 @@ function main() {
     error('Please run this script from the project root directory');
   }
 
+  const packageManager = detectPackageManager();
+  info(`Using package manager: ${packageManager}`);
+
   // 1. Clean dist directory
   cleanDist();
   
   // 2. Build backend
-  if (!buildBackend()) {
+  if (!buildBackend(packageManager)) {
     error('Backend build failed, terminating packaging');
   }
   
   // 3. Build frontend
-  if (!buildFrontend()) {
+  if (!buildFrontend(packageManager)) {
     error('Frontend build failed, terminating packaging');
   }
   

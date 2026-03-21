@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
 import { VueRenderer } from '@tiptap/vue-3'
 import tippy from 'tippy.js'
+import { i18n } from '@/i18n'
 import CommandList from '../CommandList.vue'
 import {
   TextOutline,
@@ -29,133 +30,135 @@ export interface CommandItem {
   command: (params: { editor: any; range: any }) => void
 }
 
-const allItems: CommandItem[] = [
+const tr = (key: string) => i18n.global.t(key) as string
+
+const getAllItems = (): CommandItem[] => [
   {
-    title: 'Heading 1',
-    description: 'Large section heading',
+    title: tr('editor.slash.items.heading1.title'),
+    description: tr('editor.slash.items.heading1.description'),
     icon: TextOutline,
-    group: 'Headings',
-    keywords: ['h1', 'title', 'big'],
+    group: tr('editor.slash.groups.headings'),
+    keywords: ['h1', 'title', 'big', '标题', '一级'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run()
     },
   },
   {
-    title: 'Heading 2',
-    description: 'Medium section heading',
+    title: tr('editor.slash.items.heading2.title'),
+    description: tr('editor.slash.items.heading2.description'),
     icon: TextOutline,
-    group: 'Headings',
-    keywords: ['h2', 'subtitle'],
+    group: tr('editor.slash.groups.headings'),
+    keywords: ['h2', 'subtitle', '二级'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
     },
   },
   {
-    title: 'Heading 3',
-    description: 'Small section heading',
+    title: tr('editor.slash.items.heading3.title'),
+    description: tr('editor.slash.items.heading3.description'),
     icon: TextOutline,
-    group: 'Headings',
-    keywords: ['h3', 'subheading'],
+    group: tr('editor.slash.groups.headings'),
+    keywords: ['h3', 'subheading', '三级'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
     },
   },
   {
-    title: 'Bullet List',
-    description: 'Unordered list',
+    title: tr('editor.slash.items.bulletList.title'),
+    description: tr('editor.slash.items.bulletList.description'),
     icon: ListOutline,
-    group: 'Lists',
-    keywords: ['ul', 'unordered', 'bullet'],
+    group: tr('editor.slash.groups.lists'),
+    keywords: ['ul', 'unordered', 'bullet', '列表', '无序'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleBulletList().run()
     },
   },
   {
-    title: 'Ordered List',
-    description: 'Numbered list',
+    title: tr('editor.slash.items.orderedList.title'),
+    description: tr('editor.slash.items.orderedList.description'),
     icon: ListCircleOutline,
-    group: 'Lists',
-    keywords: ['ol', 'numbered', 'number'],
+    group: tr('editor.slash.groups.lists'),
+    keywords: ['ol', 'numbered', 'number', '有序'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleOrderedList().run()
     },
   },
   {
-    title: 'Task List',
-    description: 'Checklist with toggles',
+    title: tr('editor.slash.items.taskList.title'),
+    description: tr('editor.slash.items.taskList.description'),
     icon: CheckboxOutline,
-    group: 'Lists',
-    keywords: ['todo', 'checkbox', 'check'],
+    group: tr('editor.slash.groups.lists'),
+    keywords: ['todo', 'checkbox', 'check', '任务', '待办'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleTaskList().run()
     },
   },
   {
-    title: 'Code Block',
-    description: 'Syntax highlighted code',
+    title: tr('editor.slash.items.codeBlock.title'),
+    description: tr('editor.slash.items.codeBlock.description'),
     icon: CodeSlashOutline,
-    group: 'Blocks',
-    keywords: ['code', 'pre', 'syntax', 'snippet'],
+    group: tr('editor.slash.groups.blocks'),
+    keywords: ['code', 'pre', 'syntax', 'snippet', '代码'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
     },
   },
   {
-    title: 'Blockquote',
-    description: 'Quoted text block',
+    title: tr('editor.slash.items.blockquote.title'),
+    description: tr('editor.slash.items.blockquote.description'),
     icon: ChatboxEllipsesOutline,
-    group: 'Blocks',
-    keywords: ['quote', 'cite'],
+    group: tr('editor.slash.groups.blocks'),
+    keywords: ['quote', 'cite', '引用'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleBlockquote().run()
     },
   },
   {
-    title: 'Info',
-    description: 'Informational callout',
+    title: tr('editor.slash.items.info.title'),
+    description: tr('editor.slash.items.info.description'),
     icon: InformationCircleOutline,
-    group: 'Callouts',
-    keywords: ['admonition', 'info', 'note', 'tip'],
+    group: tr('editor.slash.groups.callouts'),
+    keywords: ['admonition', 'info', 'note', 'tip', '信息', '提示'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertAdmonition({ type: 'info' }).run()
     },
   },
   {
-    title: 'Warning',
-    description: 'Warning callout',
+    title: tr('editor.slash.items.warning.title'),
+    description: tr('editor.slash.items.warning.description'),
     icon: WarningOutline,
-    group: 'Callouts',
-    keywords: ['admonition', 'warning', 'caution', 'alert'],
+    group: tr('editor.slash.groups.callouts'),
+    keywords: ['admonition', 'warning', 'caution', 'alert', '警告'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertAdmonition({ type: 'warning' }).run()
     },
   },
   {
-    title: 'Success',
-    description: 'Success callout',
+    title: tr('editor.slash.items.success.title'),
+    description: tr('editor.slash.items.success.description'),
     icon: CheckmarkCircleOutline,
-    group: 'Callouts',
-    keywords: ['admonition', 'success', 'done', 'complete'],
+    group: tr('editor.slash.groups.callouts'),
+    keywords: ['admonition', 'success', 'done', 'complete', '成功'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertAdmonition({ type: 'success' }).run()
     },
   },
   {
-    title: 'Danger',
-    description: 'Danger callout',
+    title: tr('editor.slash.items.danger.title'),
+    description: tr('editor.slash.items.danger.description'),
     icon: CloseCircleOutline,
-    group: 'Callouts',
-    keywords: ['admonition', 'danger', 'error', 'critical'],
+    group: tr('editor.slash.groups.callouts'),
+    keywords: ['admonition', 'danger', 'error', 'critical', '危险'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertAdmonition({ type: 'danger' }).run()
     },
   },
   {
-    title: 'Image',
-    description: 'Upload or embed image',
+    title: tr('editor.slash.items.image.title'),
+    description: tr('editor.slash.items.image.description'),
     icon: ImageOutline,
-    group: 'Insert',
-    keywords: ['image', 'picture', 'photo', 'img'],
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['image', 'picture', 'photo', 'img', '图片'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run()
       const event = new CustomEvent('open-image-uploader', {
@@ -165,41 +168,85 @@ const allItems: CommandItem[] = [
     },
   },
   {
-    title: 'Table',
-    description: '3×3 table with header',
+    title: tr('editor.slash.items.table.title'),
+    description: tr('editor.slash.items.table.description'),
     icon: GridOutline,
-    group: 'Insert',
-    keywords: ['table', 'grid', 'spreadsheet'],
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['table', 'grid', 'spreadsheet', '表格'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
     },
   },
   {
-    title: 'Block Formula',
-    description: 'Display math equation',
+    title: tr('editor.slash.items.pageBreak.title'),
+    description: tr('editor.slash.items.pageBreak.description'),
+    icon: DocumentTextOutline,
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['page', 'break', 'print', '分页', '分页符', '打印'],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertPageBreak().run()
+    },
+  },
+  {
+    title: tr('editor.slash.items.flowchart.title'),
+    description: tr('editor.slash.items.flowchart.description'),
+    icon: CodeSlashOutline,
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['flow', 'flowchart', 'diagram', '流程图', '图表'],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent({
+        type: 'codeBlock',
+        attrs: { language: 'flow' },
+        content: [{
+          type: 'text',
+          text: 'st=>start: Start\nop=>operation: Action\ncond=>condition: Success?\ne=>end: Done\n\nst->op->cond\ncond(yes)->e\ncond(no)->op',
+        }],
+      }).run()
+    },
+  },
+  {
+    title: tr('editor.slash.items.sequenceDiagram.title'),
+    description: tr('editor.slash.items.sequenceDiagram.description'),
+    icon: CodeSlashOutline,
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['seq', 'sequence', 'diagram', '时序图', '序列图'],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent({
+        type: 'codeBlock',
+        attrs: { language: 'seq' },
+        content: [{
+          type: 'text',
+          text: 'Alice->Bob: Hello\nNote right of Bob: Thinking...\nBob-->Alice: Hi!',
+        }],
+      }).run()
+    },
+  },
+  {
+    title: tr('editor.slash.items.blockFormula.title'),
+    description: tr('editor.slash.items.blockFormula.description'),
     icon: CalculatorOutline,
-    group: 'Insert',
-    keywords: ['math', 'formula', 'equation', 'latex', 'katex', 'block'],
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['math', 'formula', 'equation', 'latex', 'katex', 'block', '公式', '块'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertMathBlock().run()
     },
   },
   {
-    title: 'Inline Formula',
-    description: 'Inline math expression',
+    title: tr('editor.slash.items.inlineFormula.title'),
+    description: tr('editor.slash.items.inlineFormula.description'),
     icon: CalculatorOutline,
-    group: 'Insert',
-    keywords: ['math', 'formula', 'inline', 'latex', 'katex'],
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['math', 'formula', 'inline', 'latex', 'katex', '行内', '公式'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertMathInline().run()
     },
   },
   {
-    title: 'Import Markdown',
-    description: 'Import from Markdown file',
+    title: tr('editor.slash.items.importMarkdown.title'),
+    description: tr('editor.slash.items.importMarkdown.description'),
     icon: DocumentTextOutline,
-    group: 'Insert',
-    keywords: ['markdown', 'md', 'import', 'paste'],
+    group: tr('editor.slash.groups.insert'),
+    keywords: ['markdown', 'md', 'import', 'paste', '导入'],
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run()
       const event = new CustomEvent('open-markdown-importer', {
@@ -221,7 +268,7 @@ function matchesQuery(item: CommandItem, query: string): boolean {
 }
 
 const getSuggestionItems = ({ query }: { query: string }) => {
-  return allItems.filter((item) => matchesQuery(item, query))
+  return getAllItems().filter((item) => matchesQuery(item, query))
 }
 
 const renderSuggestion = () => {
@@ -304,8 +351,8 @@ export const SlashCommand = Extension.create({
 })
 
 export default SlashCommand.configure({
-    suggestion: {
-        items: getSuggestionItems,
-        render: renderSuggestion,
-    }
+  suggestion: {
+    items: getSuggestionItems,
+    render: renderSuggestion,
+  }
 })

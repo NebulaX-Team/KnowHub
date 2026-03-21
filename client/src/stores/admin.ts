@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { userApi, type UserListQuery, type UserListResponse, type UserData } from '@/api/user'
+import { i18n } from '@/i18n'
 
 export interface AdminUser extends UserData {}
 
@@ -11,6 +12,8 @@ export interface AdminResult {
 }
 
 export const useAdminStore = defineStore('admin', () => {
+  const tr = (key: string) => i18n.global.t(key) as string
+
   // State
   const users = ref<AdminUser[]>([])
   const loading = ref(false)
@@ -37,12 +40,12 @@ export const useAdminStore = defineStore('admin', () => {
         }
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: 'Failed to fetch users' }
+        return { success: false, error: tr('errors.admin.fetchUsersFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || 'Failed to fetch users'
+        error: error.response?.data?.message || error.message || tr('errors.admin.fetchUsersFailed')
       }
     } finally {
       loading.value = false
@@ -62,12 +65,12 @@ export const useAdminStore = defineStore('admin', () => {
         }
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: 'Failed to update ban status' }
+        return { success: false, error: tr('errors.admin.updateBanFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || 'Failed to update ban status'
+        error: error.response?.data?.message || error.message || tr('errors.admin.updateBanFailed')
       }
     } finally {
       loading.value = false
@@ -84,12 +87,12 @@ export const useAdminStore = defineStore('admin', () => {
         users.value = users.value.filter(u => u.id !== userId)
         return { success: true, data: response.data }
       } else {
-        return { success: false, error: 'Failed to delete user' }
+        return { success: false, error: tr('errors.admin.deleteUserFailed') }
       }
     } catch (error: any) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message || 'Failed to delete user'
+        error: error.response?.data?.message || error.message || tr('errors.admin.deleteUserFailed')
       }
     } finally {
       loading.value = false

@@ -61,7 +61,7 @@ USER nodejs
 
 # 环境变量映射 (解决你日志中 DB_PATH undefined 的问题)
 ENV NODE_ENV=production
-ENV DB_PATH=/app/db/schema-database.sqlite
+ENV DB_PATH=/app/db/knowhub-database.sqlite
 
 EXPOSE 3000
 
