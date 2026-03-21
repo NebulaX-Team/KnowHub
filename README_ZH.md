@@ -26,7 +26,7 @@
 | 层 | 技术 | 说明 |
 | --- | --- | --- |
 | 后端 | NestJS 10 + TypeScript | API 服务与业务逻辑 |
-| 数据库 | SQLite + better-sqlite3 | 轻量本地存储（WAL） |
+| 数据库 | better-sqlite3 / PostgreSQL | 默认 SQLite，支持切换 PostgreSQL |
 | 前端 | Vue 3 + Vite + TypeScript | 单页应用 |
 | 状态管理 | Pinia | 前端状态管理 |
 | UI 组件 | Naive UI | 组件库 |
@@ -84,7 +84,18 @@ NODE_ENV=development
 PORT=3000
 
 # Database
+DB_TYPE=sqlite
 DB_PATH=./dev.db
+
+# PostgreSQL（当 DB_TYPE=postgres 时生效）
+# DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/knowhub
+# PGHOST=127.0.0.1
+# PGPORT=5432
+# PGUSER=postgres
+# PGPASSWORD=postgres
+# PGDATABASE=knowhub
+# PGSSL=false
+# PGSSL_REJECT_UNAUTHORIZED=false
 
 # JWT
 JWT_SECRET=please-change-me
@@ -96,8 +107,16 @@ MAX_FILE_SIZE=10485760
 ```
 
 注意：
-- 后端数据库路径统一使用 `DB_PATH`。
-- 支持 `file:./dev.db` 与普通路径两种写法。
+- `DB_TYPE` 支持 `sqlite` 与 `postgres`（默认 `sqlite`）。
+- 当 `DB_TYPE=sqlite` 时，后端数据库路径使用 `DB_PATH`。
+- SQLite 支持 `file:./dev.db` 与普通路径两种写法。
+- 当 `DB_TYPE=postgres` 时，推荐使用 `DATABASE_URL`，也支持 `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`。
+
+PostgreSQL 示例配置：
+```env
+DB_TYPE=postgres
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/knowhub
+```
 
 ## 本地开发
 
@@ -172,16 +191,21 @@ cd client && bun run build && cd ..
 
 ## Docker 部署
 
-项目提供 `Dockerfile` 与 `docker-compose.yml`。
+项目提供 `Dockerfile` 与 `docker-compose.yml`，当前 `docker-compose` 已改为本地构建模式（不依赖远程镜像）。
 
 ```bash
-docker compose up -d
+# 构建并启动
+docker compose up -d --build
+
+# 仅重建镜像
+docker compose build --no-cache
 ```
 
 默认暴露端口 `3000`。请务必修改以下配置后再用于生产：
 
 - `JWT_SECRET`
 - 挂载卷路径（数据库与上传目录）
+- 数据库相关配置（`DB_TYPE` / `DB_PATH` 或 PostgreSQL 连接参数）
 
 ## 项目结构
 
@@ -190,7 +214,7 @@ KnowHub/
 ├── src/                   # NestJS 后端
 │   ├── main.ts            # 入口（CORS、静态资源、SPA 回退）
 │   ├── app.module.ts      # 根模块
-│   ├── database/          # SQLite 初始化与迁移
+│   ├── database/          # SQLite / PostgreSQL 初始化与迁移
 │   └── modules/           # 业务模块
 ├── client/                # Vue 3 前端
 │   ├── src/api/           # API 封装

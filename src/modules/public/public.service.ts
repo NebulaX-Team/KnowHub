@@ -18,7 +18,7 @@ export class PublicService {
   async findPageBySlug(slug: string): Promise<PageResponseDto & { author?: any }> {
     console.debug(`Finding public page by slug: ${slug}`);
     // Try to find by publicSlug first
-    let page = this.database.queryOne(`
+    let page = await this.database.queryOne(`
       SELECT p.*, 
              l.title as libraryTitle,
              parent.title as parentTitle
@@ -31,7 +31,7 @@ export class PublicService {
     // If not found, try by ID (if slug looks like UUID or just fallback)
     if (!page) {
        console.debug(`Page not found by slug, trying ID: ${slug}`);
-       page = this.database.queryOne(`
+       page = await this.database.queryOne(`
         SELECT p.*, 
                l.title as libraryTitle,
                parent.title as parentTitle
@@ -48,14 +48,14 @@ export class PublicService {
     }
 
     // Fetch tags
-    const tags = this.database.query(`
+    const tags = await this.database.query(`
       SELECT t.* FROM Tag t
       INNER JOIN PageTag pt ON pt.tagId = t.id
       WHERE pt.pageId = ?
     `, [page.id]);
 
     // Fetch author
-    const author = this.database.queryOne(`
+    const author = await this.database.queryOne(`
       SELECT id, displayName, email, avatar FROM User WHERE id = ?
     `, [page.userId]);
 
@@ -86,13 +86,13 @@ export class PublicService {
     console.debug(`Finding public library by slug: ${slug}`);
     
     // Debug query to see if it exists at all
-    const debugLib = this.database.queryOne(
+    const debugLib = await this.database.queryOne(
         "SELECT id, title, isPublic, publicSlug, type FROM Page WHERE publicSlug = ? OR id = ?", 
         [slug, slug]
     );
     console.debug('Debug library lookup:', debugLib);
 
-    let library = this.database.queryOne(`
+    let library = await this.database.queryOne(`
       SELECT 
         l.*,
         (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1) as pageCount
@@ -102,7 +102,7 @@ export class PublicService {
 
     if (!library) {
        console.debug(`Not found by slug, trying ID: ${slug}`);
-       library = this.database.queryOne(`
+       library = await this.database.queryOne(`
         SELECT 
           l.*,
           (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1) as pageCount
@@ -116,7 +116,7 @@ export class PublicService {
       throw new NotFoundException('Library not found or not public');
     }
 
-    const tags = this.database.query(`
+    const tags = await this.database.query(`
       SELECT t.* FROM Tag t
       INNER JOIN PageTag pt ON pt.tagId = t.id
       WHERE pt.pageId = ?
@@ -132,7 +132,7 @@ export class PublicService {
   }
 
   async getPublicTree(libraryId: string): Promise<PageResponseDto[]> {
-    const library = this.database.queryOne(
+    const library = await this.database.queryOne(
       "SELECT id FROM Page WHERE id = ? AND type = 'library' AND isPublic = 1",
       [libraryId]
     );
@@ -141,7 +141,7 @@ export class PublicService {
       throw new NotFoundException('Library not found or not public');
     }
 
-    const pages = this.database.query(`
+    const pages = await this.database.query(`
       SELECT * FROM Page 
       WHERE libraryId = ?
         AND (
@@ -188,14 +188,14 @@ export class PublicService {
 
   async getUserProfile(name: string): Promise<PublicUserProfile> {
     // Try to find by displayName first, then fallback to id
-    let user = this.database.queryOne(`
+    let user = await this.database.queryOne(`
       SELECT id, displayName, avatar, isProfilePublic, createdAt
       FROM User
       WHERE displayName = ? AND isProfilePublic = 1
     `, [name]);
 
     if (!user) {
-      user = this.database.queryOne(`
+      user = await this.database.queryOne(`
         SELECT id, displayName, avatar, isProfilePublic, createdAt
         FROM User
         WHERE id = ? AND isProfilePublic = 1
@@ -207,7 +207,7 @@ export class PublicService {
     }
 
     // Get user's public libraries
-    const libraries = this.database.query(`
+    const libraries = await this.database.query(`
       SELECT 
         l.*,
         (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1) as pageCount
@@ -233,7 +233,7 @@ export class PublicService {
   }
 
   async searchPublic(query: string): Promise<PageResponseDto[]> {
-    return this.database.query(`
+    return await this.database.query(`
       SELECT * FROM Page 
       WHERE (title LIKE ? OR content LIKE ?) 
       AND isPublic = 1 

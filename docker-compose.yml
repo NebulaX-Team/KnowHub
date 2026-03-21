@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   knowhub:
-    image: ghcr.io/nebulax-team/knowhub:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: knowhub:local
     container_name: knowhub-app
     restart: unless-stopped
     ports:
@@ -10,7 +13,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DB_TYPE=sqlite
       - DB_PATH=/app/db/knowhub-database.sqlite
+      # PostgreSQL example:
+      # - DB_TYPE=postgres
+      # - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/knowhub
+      # - PGSSL=false
       - JWT_SECRET=!!!CHANGE_THIS!!!
       - JWT_EXPIRES_IN=7d
       - UPLOAD_DIR=/app/uploads

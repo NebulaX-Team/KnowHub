@@ -15,7 +15,7 @@ export class SearchService {
         ORDER BY updatedAt DESC 
         LIMIT 10
       `;
-      return this.db.prepare(sql).all(userId);
+      return this.db.queryAll(sql, [userId]);
     }
     
     const sql = `
@@ -26,6 +26,6 @@ export class SearchService {
       LIMIT 10
     `;
     
-    return this.db.prepare(sql).all(userId, `%${query}%`);
+    return this.db.queryAll(sql, [userId, `%${query}%`]);
   }
 }

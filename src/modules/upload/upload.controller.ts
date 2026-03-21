@@ -1,12 +1,11 @@
-import { Controller, Post, Get, Delete, Put, Param, UseInterceptors, UploadedFile, BadRequestException, UseGuards, Body, Req } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Put, Param, UseInterceptors, UploadedFile, BadRequestException, UseGuards, Req } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DatabaseService } from '../../database/database.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 
 @Controller('upload')
 @UseGuards(JwtAuthGuard)
@@ -22,7 +21,7 @@ export class UploadController {
        cb(null, true);
     }
   }))
-  uploadFile(
+  async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('id') userId: string,
     @Req() req: any,
@@ -36,7 +35,7 @@ export class UploadController {
     const libraryId = req.body.libraryId || null;
 
     const url = `/uploads/${file.filename}`;
-    const id = this.database.queryOne('SELECT hex(randomblob(16)) as id').id;
+    const id = randomUUID();
     const now = new Date().toISOString();
 
     console.debug('=== Upload Image Debug ===');
@@ -47,7 +46,7 @@ export class UploadController {
     console.debug('=========================');
 
     // 记录上传的图片信息
-    this.database.run(
+    await this.database.run(
       `INSERT INTO UploadedImage (id, filename, originalName, mimeType, size, url, pageId, libraryId, userId, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, file.filename, file.originalname, file.mimetype, file.size, url, pageId, libraryId, userId, now]
@@ -60,8 +59,8 @@ export class UploadController {
   }
 
   @Get('images')
-  getImages(@CurrentUser('id') userId: string) {
-    const images = this.database.queryAll(
+  async getImages(@CurrentUser('id') userId: string) {
+    const images = await this.database.queryAll(
       `SELECT 
         ui.id,
         ui.filename,
@@ -87,12 +86,12 @@ export class UploadController {
   }
 
   @Delete('images/:id')
-  deleteImage(
+  async deleteImage(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
   ) {
     // 获取图片信息
-    const image = this.database.queryOne(
+    const image = await this.database.queryOne(
       'SELECT * FROM UploadedImage WHERE id = ? AND userId = ?',
       [id, userId]
     );
@@ -112,7 +111,7 @@ export class UploadController {
     const imageUrl = image.url;
     
     // 查找所有可能包含该图片的页面（包括library类型的页面）
-    const pagesWithImage = this.database.queryAll(
+    const pagesWithImage = await this.database.queryAll(
       `SELECT id, content FROM Page WHERE userId = ? AND content LIKE ?`,
       [userId, `%${imageUrl}%`]
     );
@@ -123,7 +122,7 @@ export class UploadController {
         const content = JSON.parse(page.content);
         const updatedContent = this.removeImageFromContent(content, imageUrl);
         
-        this.database.run(
+        await this.database.run(
           'UPDATE Page SET content = ?, updatedAt = ? WHERE id = ?',
           [JSON.stringify(updatedContent), new Date().toISOString(), page.id]
         );
@@ -134,7 +133,7 @@ export class UploadController {
     }
 
     // 3. 从数据库中删除图片记录
-    this.database.run('DELETE FROM UploadedImage WHERE id = ?', [id]);
+    await this.database.run('DELETE FROM UploadedImage WHERE id = ?', [id]);
 
     return { 
       success: true,
@@ -151,7 +150,7 @@ export class UploadController {
        cb(null, true);
     }
   }))
-  replaceImage(
+  async replaceImage(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('id') userId: string,
@@ -161,7 +160,7 @@ export class UploadController {
     }
 
     // 获取原图片信息
-    const oldImage = this.database.queryOne(
+    const oldImage = await this.database.queryOne(
       'SELECT * FROM UploadedImage WHERE id = ? AND userId = ?',
       [id, userId]
     );
@@ -210,7 +209,7 @@ export class UploadController {
     // 更新数据库记录（保持 filename 和 url 不变，更新文件元信息包括原始文件名）
     const now = new Date().toISOString();
 
-    this.database.run(
+    await this.database.run(
       `UPDATE UploadedImage 
        SET originalName = ?, mimeType = ?, size = ?, createdAt = ?
        WHERE id = ?`,

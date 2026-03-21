@@ -16,7 +16,7 @@ export interface User {
 
 export interface Page {
   id: string;
-  type: 'library' | 'page';
+  type: 'library' | 'group' | 'page';
   title: string;
   content: string;
   description?: string;

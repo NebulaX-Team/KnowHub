@@ -49,6 +49,8 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - 中文：新增分组管理独立设置页与路由（`/settings/groups`），与页面管理解耦。
 - EN: Added "Group" column in page settings list (between Library and Public) to display the parent group name.
 - 中文：页面设置列表新增“组”列（位于“知识库”和“公开”之间），用于展示父分组名称。
+- EN: Added optional PostgreSQL backend support with `DB_TYPE` switching (`sqlite` / `postgres`) while keeping SQLite as default.
+- 中文：新增可选 PostgreSQL 后端支持，通过 `DB_TYPE` 在 `sqlite` / `postgres` 间切换，SQLite 仍为默认配置。
 
 ### Changed / 变更
 
@@ -68,6 +70,10 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - 中文：优化编辑器对 Markdown 表格与 GFM 任务列表的导入处理逻辑。
 - EN: Updated README (`README.md`, `README_ZH.md`) to reflect group-based hierarchy and settings console capabilities while keeping release version at `1.0.0`.
 - 中文：更新 README（`README.md`、`README_ZH.md`）以反映分组层级与设置中心能力，版本仍保持 `1.0.0`。
+- EN: Refactored database access layer to asynchronous APIs to support both SQLite and PostgreSQL with a unified query interface.
+- 中文：数据库访问层重构为异步 API，提供统一查询接口以同时支持 SQLite 与 PostgreSQL。
+- EN: Updated Docker deployment workflow to local compose build mode (no pre-published image dependency).
+- 中文：Docker 部署流程调整为本地 compose 构建模式（不再依赖预先发布镜像）。
 
 ### Fixed / 修复
 

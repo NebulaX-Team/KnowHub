@@ -15,7 +15,7 @@ export class DatabaseModule implements OnModuleInit {
     
     // 1. 初始化表结构
     try {
-      this.databaseService.initTables();
+      await this.databaseService.initTables();
       console.log('✅ Database tables initialized');
     } catch (error) {
       console.error('❌ Table initialization failed:', error);
@@ -24,7 +24,7 @@ export class DatabaseModule implements OnModuleInit {
 
     // 2. 运行迁移
     try {
-      runMigrations(this.databaseService);
+      await runMigrations(this.databaseService);
     } catch (error) {
       console.error('❌ Migration failed:', error);
       throw error;
@@ -32,7 +32,7 @@ export class DatabaseModule implements OnModuleInit {
 
     // 3. 确保默认配置存在
     try {
-      this.databaseService.ensureDefaultConfig();
+      await this.databaseService.ensureDefaultConfig();
     } catch (error) {
       console.error('❌ Default config creation failed:', error);
       // 不抛出错误，允许服务器继续启动
@@ -40,7 +40,7 @@ export class DatabaseModule implements OnModuleInit {
 
     // 4. 检查数据库完整性
     try {
-      const isIntegrityOk = this.databaseService.checkIntegrity();
+      const isIntegrityOk = await this.databaseService.checkIntegrity();
       if (!isIntegrityOk) {
         console.warn('⚠️ Database integrity check reported issues');
       }

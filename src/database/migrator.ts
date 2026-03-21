@@ -2,7 +2,7 @@ import { DatabaseService } from './database.service';
 
 interface Migration {
   name: string;
-  up: (dbService: DatabaseService) => void;
+  up: (dbService: DatabaseService) => Promise<void> | void;
 }
 
 /**
@@ -12,10 +12,10 @@ interface Migration {
 const migrations: Migration[] = [
   {
     name: '001_add_user_is_profile_public',
-    up: (dbService: DatabaseService) => {
-      const columns = dbService.getTableColumns('User');
+    up: async (dbService: DatabaseService) => {
+      const columns = await dbService.getTableColumns('User');
       if (!columns.some(col => col.name === 'isProfilePublic')) {
-        dbService.run("ALTER TABLE User ADD COLUMN isProfilePublic INTEGER DEFAULT 0");
+        await dbService.run("ALTER TABLE User ADD COLUMN isProfilePublic INTEGER DEFAULT 0");
       }
     }
   },
@@ -24,29 +24,39 @@ const migrations: Migration[] = [
 /**
  * 运行所有待处理的迁移
  */
-export function runMigrations(databaseService: DatabaseService) {
+export async function runMigrations(databaseService: DatabaseService) {
   console.log('Checking for pending migrations...');
   
   // 创建迁移表（如果不存在）
-  databaseService.run(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name VARCHAR(255) UNIQUE NOT NULL,
-      applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+  if (databaseService.isPostgres()) {
+    await databaseService.run(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id BIGSERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        appliedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } else {
+    await databaseService.run(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        appliedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
 
   let appliedCount = 0;
 
   for (const migration of migrations) {
     // 检查迁移是否已应用
-    if (!databaseService.isMigrationApplied(migration.name)) {
+    if (!(await databaseService.isMigrationApplied(migration.name))) {
       console.log(`Applying migration: ${migration.name}`);
       try {
         // 在事务中运行迁移
-        databaseService.transaction(() => {
-          migration.up(databaseService);
-          databaseService.recordMigration(migration.name);
+        await databaseService.transaction(async () => {
+          await migration.up(databaseService);
+          await databaseService.recordMigration(migration.name);
         });
         
         console.log(`✓ Migration ${migration.name} applied successfully`);
@@ -69,7 +79,7 @@ export function runMigrations(databaseService: DatabaseService) {
  * 检查数据库完整性
  * @deprecated 使用 DatabaseService.checkIntegrity() 替代
  */
-export function checkDatabaseIntegrity(databaseService: DatabaseService): boolean {
+export async function checkDatabaseIntegrity(databaseService: DatabaseService): Promise<boolean> {
   return databaseService.checkIntegrity();
 }
 
@@ -77,6 +87,6 @@ export function checkDatabaseIntegrity(databaseService: DatabaseService): boolea
  * 确保默认系统配置存在
  * @deprecated 使用 DatabaseService.ensureDefaultConfig() 替代
  */
-export function ensureDefaultConfig(databaseService: DatabaseService): void {
-  databaseService.ensureDefaultConfig();
+export async function ensureDefaultConfig(databaseService: DatabaseService): Promise<void> {
+  await databaseService.ensureDefaultConfig();
 }

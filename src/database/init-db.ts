@@ -36,19 +36,19 @@ async function initializeDatabase() {
     
     // 1. 初始化表结构
     console.log('\n📋 Initializing tables...');
-    databaseService.initTables();
+    await databaseService.initTables();
     
     // 2. 运行迁移
     console.log('\n📋 Running migrations...');
-    runMigrations(databaseService);
+    await runMigrations(databaseService);
     
     // 3. 确保默认配置
     console.log('\n⚙️ Ensuring default configuration...');
-    databaseService.ensureDefaultConfig();
+    await databaseService.ensureDefaultConfig();
     
     // 4. 检查完整性
     console.log('\n🔍 Checking database integrity...');
-    const isIntegrityOk = databaseService.checkIntegrity();
+    const isIntegrityOk = await databaseService.checkIntegrity();
     if (!isIntegrityOk) {
       console.warn('⚠️ Database integrity check reported issues');
     }

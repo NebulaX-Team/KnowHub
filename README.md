@@ -43,7 +43,7 @@
 - ⚡ **Hot Reload** - Fast development with NestJS and Vite
 - 🎨 **Modern UI** - Naive UI component library
 - 📱 **Responsive** - Works on desktop and mobile
-- 🗄️ **SQLite Database** - Lightweight, file-based storage
+- 🗄️ **Dual Database Support** - SQLite (default) and PostgreSQL
 - 📦 **Single Binary** - Easy deployment with packaging script
 
 ## 🏗️ Architecture
@@ -53,7 +53,7 @@
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **Backend** | NestJS 10 | API server & business logic |
-| **Database** | Better-sqlite3 | SQLite with WAL mode |
+| **Database** | Better-sqlite3 / PostgreSQL | SQLite (default) + optional PostgreSQL |
 | **Frontend** | Vue 3 + Vite | SPA with hot reload |
 | **State** | Pinia | Client-side state management |
 | **UI** | Naive UI | Component library |
@@ -110,6 +110,7 @@ Edit `.env` with your configuration:
 ```env
 NODE_ENV=development
 PORT=3000
+DB_TYPE=sqlite
 DB_PATH="./dev.db"
 JWT_SECRET=your-super-secret-key-change-in-production
 JWT_EXPIRES_IN=7d
@@ -202,6 +203,23 @@ bun run start
 
 `pack.js` auto-detects bun/pnpm/npm/yarn and runs the matching scripts.
 
+### Docker Deployment
+
+This repository provides `Dockerfile` and `docker-compose.yml`, and `docker-compose` is configured to build locally (no remote image required).
+
+```bash
+# Build and start
+docker compose up -d --build
+
+# Rebuild only
+docker compose build --no-cache
+```
+
+Please update the following before production:
+- `JWT_SECRET`
+- volume mount paths for database and uploads
+- database settings (`DB_TYPE` / `DB_PATH` or PostgreSQL env vars)
+
 ### Code Quality
 
 **Backend Linting:**
@@ -226,7 +244,18 @@ NODE_ENV=development
 PORT=3000
 
 # Database
+DB_TYPE=sqlite
 DB_PATH="./dev.db"
+
+# PostgreSQL (used when DB_TYPE=postgres)
+# DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/knowhub
+# PGHOST=127.0.0.1
+# PGPORT=5432
+# PGUSER=postgres
+# PGPASSWORD=postgres
+# PGDATABASE=knowhub
+# PGSSL=false
+# PGSSL_REJECT_UNAUTHORIZED=false
 
 # JWT
 JWT_SECRET=your-super-secret-key-change-in-production
@@ -244,8 +273,16 @@ SMTP_PASS=your-app-password
 ```
 
 Notes:
-- Database path is configured via `DB_PATH`.
-- Both plain paths (for example `./dev.db`) and `file:` format are supported.
+- `DB_TYPE` supports `sqlite` and `postgres` (default: `sqlite`).
+- When `DB_TYPE=sqlite`, database path is configured via `DB_PATH`.
+- Both plain paths (for example `./dev.db`) and `file:` format are supported for SQLite.
+- When `DB_TYPE=postgres`, use `DATABASE_URL` (recommended) or `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`.
+
+Example PostgreSQL configuration:
+```env
+DB_TYPE=postgres
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/knowhub
+```
 
 ## 📁 Project Structure
 
@@ -397,3 +434,4 @@ Contributions are welcome! Please follow these guidelines:
 - [Tiptap](https://tiptap.dev/) - Rich text editor
 - [Naive UI](https://www.naiveui.com/) - Component library
 - [SQLite](https://www.sqlite.org/) - Database
+- [PostgreSQL](https://www.postgresql.org/) - Optional database backend

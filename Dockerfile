@@ -59,8 +59,9 @@ COPY --from=frontend-builder /app/dist ./dist/frontend
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 
-# 环境变量映射 (解决你日志中 DB_PATH undefined 的问题)
+# 环境变量默认值（可在运行时覆盖）
 ENV NODE_ENV=production
+ENV DB_TYPE=sqlite
 ENV DB_PATH=/app/db/knowhub-database.sqlite
 
 EXPOSE 3000

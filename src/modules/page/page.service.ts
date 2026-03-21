@@ -6,6 +6,7 @@ import { MovePageDto } from './dto/move-page.dto';
 import { PageQueryDto } from './dto/page-query.dto';
 import { PageResponseDto } from './dto/page-response.dto';
 import { CreateVersionDto, CleanupVersionsDto, UpdatePageSettingsDto } from './dto/version-history.dto';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class PageService {
@@ -15,8 +16,7 @@ export class PageService {
    * Generate a unique ID
    */
   private generateId(): string {
-    const result = this.database.queryOne('SELECT hex(randomblob(16)) as id');
-    return result.id;
+    return randomUUID();
   }
 
   /**
@@ -29,7 +29,7 @@ export class PageService {
     let isPublic = createPageDto.isPublic;
     
     // Validate library exists and user has access
-    const library = this.database.queryOne(
+    const library = await this.database.queryOne(
       "SELECT id, isPublic FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
       [createPageDto.libraryId, userId]
     );
@@ -40,7 +40,7 @@ export class PageService {
 
     // Validate parent page exists if provided
     if (createPageDto.parentId) {
-      const parent = this.database.queryOne(
+      const parent = await this.database.queryOne(
         "SELECT id, libraryId, isPublic FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
         [createPageDto.parentId, userId]
       );
@@ -66,7 +66,7 @@ export class PageService {
     const contentStr = JSON.stringify(content);
 
     // Get max sortOrder for pages with same parent
-    const maxSortResult = this.database.queryOne(
+    const maxSortResult = await this.database.queryOne(
       `SELECT COALESCE(MAX(sortOrder), 0) as maxSort 
        FROM Page 
        WHERE libraryId = ? AND parentId ${createPageDto.parentId ? '= ?' : 'IS NULL'}`,
@@ -74,7 +74,7 @@ export class PageService {
     );
     const sortOrder = (maxSortResult.maxSort || 0) + 1;
 
-    this.database.run(`
+    await this.database.run(`
       INSERT INTO Page (
         id, type, title, content, icon, isPublic, sortOrder, metadata, 
         createdAt, updatedAt, userId, libraryId, parentId, coverImage
@@ -143,7 +143,7 @@ export class PageService {
     const whereClause = conditions.join(' AND ');
 
     // Get total count
-    const totalResult = this.database.queryOne(
+    const totalResult = await this.database.queryOne(
       `SELECT COUNT(*) as count 
        FROM Page p 
        WHERE ${whereClause}`,
@@ -157,7 +157,7 @@ export class PageService {
     const safeSortDirection = sortDirection === 'DESC' ? 'DESC' : 'ASC';
 
     // Get paginated items
-    const items = this.database.query(`
+    const items = await this.database.query(`
       SELECT p.*, 
              l.title as libraryTitle,
              parent.title as parentTitle
@@ -217,7 +217,7 @@ export class PageService {
    * Find a single page with parent and children
    */
   async findOne(userId: string, id: string): Promise<PageResponseDto> {
-    const page = this.database.queryOne(`
+    const page = await this.database.queryOne(`
       SELECT p.*, 
              l.title as libraryTitle,
              parent.title as parentTitle,
@@ -234,14 +234,14 @@ export class PageService {
     }
 
     // Get immediate children
-    const children = this.database.query(`
+    const children = await this.database.query(`
       SELECT * FROM Page 
       WHERE parentId = ? AND userId = ? AND type IN ('page', 'group')
       ORDER BY sortOrder ASC
     `, [id, userId]);
 
     // Get tags
-    const tags = this.database.query(`
+    const tags = await this.database.query(`
       SELECT t.id, t.name, t.color, t.createdAt
       FROM Tag t
       INNER JOIN PageTag pt ON t.id = pt.tagId
@@ -315,7 +315,7 @@ export class PageService {
    */
   async getTree(userId: string, libraryId: string): Promise<PageResponseDto[]> {
     // Validate library access
-    const library = this.database.queryOne(
+    const library = await this.database.queryOne(
       "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
       [libraryId, userId]
     );
@@ -325,7 +325,7 @@ export class PageService {
     }
 
     // Get all pages for the library
-    const pages = this.database.query(`
+    const pages = await this.database.query(`
       SELECT * FROM Page 
       WHERE libraryId = ? AND userId = ? AND type IN ('page', 'group')
       ORDER BY sortOrder ASC
@@ -363,7 +363,7 @@ export class PageService {
    * Update a page
    */
   async update(userId: string, id: string, updatePageDto: UpdatePageDto): Promise<PageResponseDto> {
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT * FROM Page WHERE id = ? AND userId = ?',
       [id, userId]
     );
@@ -374,7 +374,7 @@ export class PageService {
 
     // Validate library exists if changing
     if (updatePageDto.libraryId && updatePageDto.libraryId !== page.libraryId) {
-      const library = this.database.queryOne(
+      const library = await this.database.queryOne(
         "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
         [updatePageDto.libraryId, userId]
       );
@@ -387,7 +387,7 @@ export class PageService {
     // Validate parent page if provided
     if (updatePageDto.parentId !== undefined) {
       if (updatePageDto.parentId && updatePageDto.parentId !== page.parentId) {
-        const parent = this.database.queryOne(
+        const parent = await this.database.queryOne(
           "SELECT id, libraryId FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
           [updatePageDto.parentId, userId]
         );
@@ -397,7 +397,7 @@ export class PageService {
         }
 
         // Check for circular reference
-        if (this.hasCircularReference(id, updatePageDto.parentId)) {
+        if (await this.hasCircularReference(id, updatePageDto.parentId)) {
           throw new ConflictException('Circular reference detected');
         }
 
@@ -468,7 +468,7 @@ export class PageService {
 
     params.push(id, userId);
 
-    this.database.run(
+    await this.database.run(
       `UPDATE Page SET ${updates.join(', ')} WHERE id = ? AND userId = ?`,
       params
     );
@@ -483,7 +483,7 @@ export class PageService {
       const isPublicVal = updatePageDto.isPublic ? 1 : 0;
       
       // Get all descendants
-      const descendants = this.database.query(`
+      const descendants = await this.database.query(`
         WITH RECURSIVE descendants(id) AS (
           SELECT id FROM Page WHERE parentId = ?
           UNION ALL
@@ -499,7 +499,7 @@ export class PageService {
              slug = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
         }
         
-        this.database.run(
+        await this.database.run(
             'UPDATE Page SET isPublic = ?, publicSlug = ? WHERE id = ?',
             [isPublicVal, slug, descendant.id]
         );
@@ -513,7 +513,7 @@ export class PageService {
    * Move page to another parent or library
    */
   async move(userId: string, id: string, movePageDto: MovePageDto): Promise<PageResponseDto> {
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT * FROM Page WHERE id = ? AND userId = ?',
       [id, userId]
     );
@@ -537,7 +537,7 @@ export class PageService {
           throw new ConflictException('Cannot move page under itself');
         }
 
-        const parent = this.database.queryOne(
+        const parent = await this.database.queryOne(
           "SELECT id, libraryId, parentId FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
           [movePageDto.newParentId, userId]
         );
@@ -553,7 +553,7 @@ export class PageService {
             if (current.parentId === id) {
                 throw new ConflictException('Cannot move page under its own descendant');
             }
-            const nextParent = this.database.queryOne(
+            const nextParent = await this.database.queryOne(
                 'SELECT id, parentId FROM Page WHERE id = ?',
                 [current.parentId]
             );
@@ -575,7 +575,7 @@ export class PageService {
     // Handle library change
     if (movePageDto.newLibraryId && movePageDto.newLibraryId !== page.libraryId) {
        if (movePageDto.newParentId === undefined) {
-           const library = this.database.queryOne(
+           const library = await this.database.queryOne(
                "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
                [movePageDto.newLibraryId, userId]
            );
@@ -587,7 +587,7 @@ export class PageService {
            params.push(movePageDto.newLibraryId);
            
            if (page.parentId) {
-               const parent = this.database.queryOne(
+               const parent = await this.database.queryOne(
                    'SELECT libraryId FROM Page WHERE id = ?',
                    [page.parentId]
                );
@@ -618,7 +618,7 @@ export class PageService {
              maxSortParams = [libId];
         }
         
-        const maxSortResult = this.database.queryOne(maxSortQuery, maxSortParams);
+        const maxSortResult = await this.database.queryOne(maxSortQuery, maxSortParams);
         const newSortOrder = (maxSortResult.maxSort || 0) + 1;
         
         updates.push('sortOrder = ?');
@@ -658,7 +658,7 @@ export class PageService {
           shiftParams.splice(shiftParams.length - 2, 0, targetLibraryId);
       }
 
-      this.database.run(
+      await this.database.run(
           `UPDATE Page SET sortOrder = sortOrder + 1 WHERE ${parentClause} AND sortOrder >= ? AND id != ?`,
           shiftParams
       );
@@ -674,7 +674,7 @@ export class PageService {
       params.push(id);
       params.push(userId);
 
-      this.database.run(
+      await this.database.run(
         `UPDATE Page SET ${updates.join(', ')} WHERE id = ? AND userId = ?`,
         params
       );
@@ -687,7 +687,7 @@ export class PageService {
    * Delete a page and its children
    */
   async remove(userId: string, id: string): Promise<{ success: boolean; message: string }> {
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT * FROM Page WHERE id = ? AND userId = ?',
       [id, userId]
     );
@@ -697,23 +697,23 @@ export class PageService {
     }
 
     // Recursive delete function
-    const deleteRecursive = (pageId: string) => {
+    const deleteRecursive = async (pageId: string): Promise<void> => {
       // Find children
-      const children = this.database.query(
+      const children = await this.database.query(
         'SELECT id FROM Page WHERE parentId = ? AND userId = ?',
         [pageId, userId]
       );
 
       // Delete children recursively
       for (const child of children) {
-        deleteRecursive(child.id);
+        await deleteRecursive(child.id);
       }
 
       // Delete the page itself
-      this.database.run('DELETE FROM Page WHERE id = ?', [pageId]);
+      await this.database.run('DELETE FROM Page WHERE id = ?', [pageId]);
     };
 
-    deleteRecursive(id);
+    await deleteRecursive(id);
 
     return { success: true, message: 'Page deleted successfully' };
   }
@@ -721,7 +721,7 @@ export class PageService {
   /**
    * Check for circular references
    */
-  private hasCircularReference(pageId: string, newParentId: string): boolean {
+  private async hasCircularReference(pageId: string, newParentId: string): Promise<boolean> {
     if (pageId === newParentId) {
       return true;
     }
@@ -735,7 +735,7 @@ export class PageService {
       }
       visited.add(current);
 
-      const parent = this.database.queryOne('SELECT parentId FROM Page WHERE id = ?', [current]);
+      const parent = await this.database.queryOne('SELECT parentId FROM Page WHERE id = ?', [current]);
       if (!parent || !parent.parentId) {
         break;
       }
@@ -754,7 +754,7 @@ export class PageService {
    */
   async attachTag(userId: string, pageId: string, tagId: string): Promise<{ success: boolean; message: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -764,13 +764,13 @@ export class PageService {
     }
 
     // Verify tag exists
-    const tag = this.database.queryOne('SELECT id FROM Tag WHERE id = ?', [tagId]);
+    const tag = await this.database.queryOne('SELECT id FROM Tag WHERE id = ?', [tagId]);
     if (!tag) {
       throw new NotFoundException('Tag not found');
     }
 
     // Check if already attached
-    const existing = this.database.queryOne(
+    const existing = await this.database.queryOne(
       'SELECT pageId FROM PageTag WHERE pageId = ? AND tagId = ?',
       [pageId, tagId]
     );
@@ -779,7 +779,7 @@ export class PageService {
       throw new ConflictException('Tag is already attached to this page');
     }
 
-    this.database.run(
+    await this.database.run(
       'INSERT INTO PageTag (pageId, tagId) VALUES (?, ?)',
       [pageId, tagId]
     );
@@ -792,7 +792,7 @@ export class PageService {
    */
   async detachTag(userId: string, pageId: string, tagId: string): Promise<{ success: boolean; message: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -802,7 +802,7 @@ export class PageService {
     }
 
     // Verify the association exists
-    const existing = this.database.queryOne(
+    const existing = await this.database.queryOne(
       'SELECT pageId FROM PageTag WHERE pageId = ? AND tagId = ?',
       [pageId, tagId]
     );
@@ -811,7 +811,7 @@ export class PageService {
       throw new NotFoundException('Tag is not attached to this page');
     }
 
-    this.database.run(
+    await this.database.run(
       'DELETE FROM PageTag WHERE pageId = ? AND tagId = ?',
       [pageId, tagId]
     );
@@ -824,7 +824,7 @@ export class PageService {
    */
   async updateTags(userId: string, pageId: string, tagIds: string[]): Promise<{ success: boolean; message: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -835,18 +835,18 @@ export class PageService {
 
     // Verify all tags exist
     for (const tagId of tagIds) {
-      const tag = this.database.queryOne('SELECT id FROM Tag WHERE id = ?', [tagId]);
+      const tag = await this.database.queryOne('SELECT id FROM Tag WHERE id = ?', [tagId]);
       if (!tag) {
         throw new NotFoundException(`Tag not found: ${tagId}`);
       }
     }
 
     // Remove existing tags
-    this.database.run('DELETE FROM PageTag WHERE pageId = ?', [pageId]);
+    await this.database.run('DELETE FROM PageTag WHERE pageId = ?', [pageId]);
 
     // Add new tags
     for (const tagId of tagIds) {
-      this.database.run(
+      await this.database.run(
         'INSERT INTO PageTag (pageId, tagId) VALUES (?, ?)',
         [pageId, tagId]
       );
@@ -860,7 +860,7 @@ export class PageService {
    */
   async getTags(userId: string, pageId: string): Promise<Array<{ id: string; name: string; color?: string; createdAt: string }>> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -869,7 +869,7 @@ export class PageService {
       throw new NotFoundException('Page not found');
     }
 
-    const tags = this.database.query(`
+    const tags = await this.database.query(`
       SELECT t.id, t.name, t.color, t.createdAt
       FROM Tag t
       INNER JOIN PageTag pt ON t.id = pt.tagId
@@ -890,7 +890,7 @@ export class PageService {
    */
   async getVersions(userId: string, pageId: string): Promise<Array<{ id: string; content: any; message?: string; createdAt: string; pageId: string }>> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -899,7 +899,7 @@ export class PageService {
       throw new NotFoundException('Page not found');
     }
 
-    const versions = this.database.query(`
+    const versions = await this.database.query(`
       SELECT id, content, message, createdAt, pageId
       FROM PageVersion
       WHERE pageId = ?
@@ -920,7 +920,7 @@ export class PageService {
    */
   async createVersion(userId: string, pageId: string, createVersionDto: CreateVersionDto): Promise<{ id: string; content: any; message?: string; createdAt: string; pageId: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id, content FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -934,13 +934,13 @@ export class PageService {
     const id = this.generateId();
     const now = new Date().toISOString();
     const contentStr = JSON.stringify(contentObj);
-    this.database.run(`
+    await this.database.run(`
       INSERT INTO PageVersion (id, content, message, createdAt, pageId)
       VALUES (?, ?, ?, ?, ?)
     `, [id, contentStr, createVersionDto.message || null, now, pageId]);
 
     // Get retention limit from page metadata
-    const retentionLimit = this.getVersionRetentionLimit(pageId, userId);
+    const retentionLimit = await this.getVersionRetentionLimit(pageId, userId);
     if (retentionLimit > 0) {
       await this.enforceRetentionLimit(pageId, userId, retentionLimit);
     }
@@ -959,7 +959,7 @@ export class PageService {
    */
   async restoreVersion(userId: string, pageId: string, versionId: string): Promise<PageResponseDto> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -969,7 +969,7 @@ export class PageService {
     }
 
     // Verify version exists and belongs to the page
-    const version = this.database.queryOne(`
+    const version = await this.database.queryOne(`
       SELECT id, content, message, createdAt
       FROM PageVersion
       WHERE id = ? AND pageId = ?
@@ -981,7 +981,7 @@ export class PageService {
 
     // Restore the content
     const now = new Date().toISOString();
-    this.database.run(`
+    await this.database.run(`
       UPDATE Page
       SET content = ?, updatedAt = ?
       WHERE id = ? AND userId = ?
@@ -992,7 +992,7 @@ export class PageService {
     const restoreVersionId = this.generateId();
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const localTime = new Date(version.createdAt).toLocaleString('en-US', { timeZone: userTimezone });
-    this.database.run(`
+    await this.database.run(`
       INSERT INTO PageVersion (id, content, message, createdAt, pageId)
       VALUES (?, ?, ?, ?, ?)
     `, [restoreVersionId, version.content, `Restored from version ${localTime}`, now, pageId]);
@@ -1006,7 +1006,7 @@ export class PageService {
    */
   async cleanupVersions(userId: string, pageId: string, cleanupDto: CleanupVersionsDto): Promise<{ success: boolean; deletedCount: number; message: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -1032,7 +1032,7 @@ export class PageService {
     const cutoffDateStr = cutoffDate.toISOString();
 
     // Get count of versions to delete
-    const countResult = this.database.queryOne(`
+    const countResult = await this.database.queryOne(`
       SELECT COUNT(*) as count
       FROM PageVersion
       WHERE pageId = ? AND createdAt < ?
@@ -1042,7 +1042,7 @@ export class PageService {
 
     // Delete old versions
     if (deletedCount > 0) {
-      this.database.run(`
+      await this.database.run(`
         DELETE FROM PageVersion
         WHERE pageId = ? AND createdAt < ?
       `, [pageId, cutoffDateStr]);
@@ -1060,7 +1060,7 @@ export class PageService {
    */
   async deleteVersion(userId: string, pageId: string, versionId: string): Promise<{ success: boolean; message: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -1070,7 +1070,7 @@ export class PageService {
     }
 
     // Verify version exists and belongs to the page
-    const version = this.database.queryOne(
+    const version = await this.database.queryOne(
       'SELECT id FROM PageVersion WHERE id = ? AND pageId = ?',
       [versionId, pageId]
     );
@@ -1080,7 +1080,7 @@ export class PageService {
     }
 
     // Delete the version
-    this.database.run(
+    await this.database.run(
       'DELETE FROM PageVersion WHERE id = ?',
       [versionId]
     );
@@ -1096,7 +1096,7 @@ export class PageService {
    */
   async updatePageSettings(userId: string, pageId: string, updateSettingsDto: UpdatePageSettingsDto): Promise<{ success: boolean; message: string }> {
     // Verify page exists and user has access
-    const page = this.database.queryOne(
+    const page = await this.database.queryOne(
       'SELECT id, metadata FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -1125,7 +1125,7 @@ export class PageService {
 
     // Save updated metadata
     const metadataStr = JSON.stringify(metadata);
-    this.database.run(`
+    await this.database.run(`
       UPDATE Page
       SET metadata = ?
       WHERE id = ? AND userId = ?
@@ -1145,8 +1145,8 @@ export class PageService {
   /**
    * Get version retention limit for a page
    */
-  private getVersionRetentionLimit(pageId: string, userId: string): number {
-    const page = this.database.queryOne(
+  private async getVersionRetentionLimit(pageId: string, userId: string): Promise<number> {
+    const page = await this.database.queryOne(
       'SELECT metadata FROM Page WHERE id = ? AND userId = ?',
       [pageId, userId]
     );
@@ -1168,7 +1168,7 @@ export class PageService {
    */
   private async enforceRetentionLimit(pageId: string, userId: string, limit: number): Promise<void> {
     // Get all version IDs sorted by creation date (oldest first)
-    const versions = this.database.query(`
+    const versions = await this.database.query(`
       SELECT id
       FROM PageVersion
       WHERE pageId = ?
@@ -1182,7 +1182,7 @@ export class PageService {
 
       if (versionIds.length > 0) {
         const placeholders = versionIds.map(() => '?').join(',');
-        this.database.run(`
+        await this.database.run(`
           DELETE FROM PageVersion
           WHERE id IN (${placeholders})
         `, versionIds);
@@ -1193,9 +1193,9 @@ export class PageService {
   /**
    * Check if we should create an automatic version (based on time since last version)
    */
-  private shouldCreateAutomaticVersion(pageId: string, userId: string): boolean {
+  private async shouldCreateAutomaticVersion(pageId: string, _userId: string): Promise<boolean> {
     // Get the most recent version
-    const lastVersion = this.database.queryOne(`
+    const lastVersion = await this.database.queryOne(`
       SELECT createdAt
       FROM PageVersion
       WHERE pageId = ?
@@ -1222,7 +1222,7 @@ export class PageService {
    */
   async createAutomaticVersionIfApplicable(userId: string, pageId: string): Promise<void> {
     // Check if we should create a version
-    if (!this.shouldCreateAutomaticVersion(pageId, userId)) {
+    if (!(await this.shouldCreateAutomaticVersion(pageId, userId))) {
       return;
     }
 
@@ -1238,15 +1238,16 @@ export class PageService {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const currentYear = now.getFullYear();
-    const pattern = `%-${month}-${day}%`;
+    const onThisDayCondition = this.database.isPostgres()
+      ? `TO_CHAR(p.createdAt, 'MM-DD') = ? AND EXTRACT(YEAR FROM p.createdAt) < ?`
+      : `strftime('%m-%d', p.createdAt) = ? AND CAST(strftime('%Y', p.createdAt) AS INTEGER) < ?`;
 
-    const items = this.database.query(`
+    const items = await this.database.query(`
       SELECT p.id, p.title, p.icon, p.createdAt, l.title as libraryTitle
       FROM Page p
       LEFT JOIN Page l ON p.libraryId = l.id
       WHERE p.userId = ? AND p.type = 'page'
-        AND strftime('%m-%d', p.createdAt) = ?
-        AND CAST(strftime('%Y', p.createdAt) AS INTEGER) < ?
+        AND ${onThisDayCondition}
       ORDER BY p.createdAt DESC
       LIMIT ?
     `, [userId, `${month}-${day}`, currentYear, limit]);
@@ -1265,7 +1266,7 @@ export class PageService {
    * Get pages that haven't been visited for a long time
    */
   async getLongUnvisited(userId: string, limit = 10): Promise<Array<{ id: string; title: string; icon: string | null; days: number; lastViewedAt: string | null; libraryTitle: string | null }>> {
-    const items = this.database.query(`
+    const items = await this.database.query(`
       SELECT p.id, p.title, p.icon, p.lastViewedAt, p.createdAt, l.title as libraryTitle
       FROM Page p
       LEFT JOIN Page l ON p.libraryId = l.id

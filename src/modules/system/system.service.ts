@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { DatabaseService } from '@/database/database.service';
 import { LocalizedTextDto, UpdateSiteInfoDto } from './dto/update-site-info.dto';
@@ -28,12 +28,12 @@ export class SystemService {
    * 获取网站信息
    */
   async getSiteInfo(acceptLanguage?: string): Promise<SiteInfoResponseDto> {
-    const titleResult = this.database.queryOne(
+    const titleResult = await this.database.queryOne(
       'SELECT value, updatedAt FROM SystemConfig WHERE key = ?',
       ['siteTitle']
     );
 
-    const descriptionResult = this.database.queryOne(
+    const descriptionResult = await this.database.queryOne(
       'SELECT value, updatedAt FROM SystemConfig WHERE key = ?',
       ['siteDescription']
     );
@@ -60,11 +60,11 @@ export class SystemService {
   async updateSiteInfo(updateSiteInfoDto: UpdateSiteInfoDto, acceptLanguage?: string): Promise<SiteInfoResponseDto> {
     const now = new Date().toISOString();
 
-    const titleResult = this.database.queryOne(
+    const titleResult = await this.database.queryOne(
       'SELECT value FROM SystemConfig WHERE key = ?',
       ['siteTitle']
     );
-    const descriptionResult = this.database.queryOne(
+    const descriptionResult = await this.database.queryOne(
       'SELECT value FROM SystemConfig WHERE key = ?',
       ['siteDescription']
     );
@@ -84,18 +84,18 @@ export class SystemService {
     );
 
     if (updateSiteInfoDto.title !== undefined || updateSiteInfoDto.titleI18n !== undefined) {
-      const existing = this.database.queryOne(
+      const existing = await this.database.queryOne(
         'SELECT key FROM SystemConfig WHERE key = ?',
         ['siteTitle']
       );
 
       if (existing) {
-        this.database.run(
+        await this.database.run(
           'UPDATE SystemConfig SET value = ?, updatedAt = ? WHERE key = ?',
           [JSON.stringify(nextTitleI18n), now, 'siteTitle']
         );
       } else {
-        this.database.run(
+        await this.database.run(
           'INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)',
           ['siteTitle', JSON.stringify(nextTitleI18n), now]
         );
@@ -103,18 +103,18 @@ export class SystemService {
     }
 
     if (updateSiteInfoDto.description !== undefined || updateSiteInfoDto.descriptionI18n !== undefined) {
-      const existing = this.database.queryOne(
+      const existing = await this.database.queryOne(
         'SELECT key FROM SystemConfig WHERE key = ?',
         ['siteDescription']
       );
 
       if (existing) {
-        this.database.run(
+        await this.database.run(
           'UPDATE SystemConfig SET value = ?, updatedAt = ? WHERE key = ?',
           [JSON.stringify(nextDescriptionI18n), now, 'siteDescription']
         );
       } else {
-        this.database.run(
+        await this.database.run(
           'INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)',
           ['siteDescription', JSON.stringify(nextDescriptionI18n), now]
         );
@@ -197,7 +197,7 @@ export class SystemService {
    * Get SMTP configuration
    */
   async getSmtpConfig(): Promise<UpdateSmtpConfigDto> {
-    const result = this.database.queryOne(
+    const result = await this.database.queryOne(
       'SELECT value FROM SystemConfig WHERE key = ?',
       ['smtpConfig']
     );
@@ -217,7 +217,7 @@ export class SystemService {
    */
   async updateSmtpConfig(config: UpdateSmtpConfigDto): Promise<UpdateSmtpConfigDto> {
     const now = new Date().toISOString();
-    const result = this.database.queryOne(
+    const result = await this.database.queryOne(
       'SELECT value FROM SystemConfig WHERE key = ?',
       ['smtpConfig']
     );
@@ -235,12 +235,12 @@ export class SystemService {
     const value = JSON.stringify(newConfig);
 
     if (result) {
-      this.database.run(
+      await this.database.run(
         'UPDATE SystemConfig SET value = ?, updatedAt = ? WHERE key = ?',
         [value, now, 'smtpConfig']
       );
     } else {
-      this.database.run(
+      await this.database.run(
         'INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)',
         ['smtpConfig', value, now]
       );

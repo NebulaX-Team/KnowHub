@@ -27,7 +27,7 @@ export class UserService {
       FROM User
       WHERE email = ?
     `;
-    return this.database.queryOne(sql, [email]) as User | null;
+    return await this.database.queryOne(sql, [email]) as User | null;
   }
 
   async findById(id: string): Promise<User | null> {
@@ -36,7 +36,7 @@ export class UserService {
       FROM User
       WHERE id = ?
     `;
-    return this.database.queryOne(sql, [id]) as User | null;
+    return await this.database.queryOne(sql, [id]) as User | null;
   }
 
   async list(query: UserListQuery): Promise<UserListResponse> {
@@ -54,7 +54,7 @@ export class UserService {
 
     // Get total count
     const countSql = `SELECT COUNT(*) as count FROM User ${whereClause}`;
-    const countResult = this.database.queryOne(countSql, params);
+    const countResult = await this.database.queryOne(countSql, params);
     const total = countResult?.count || 0;
 
     // Get users
@@ -65,7 +65,7 @@ export class UserService {
       ORDER BY createdAt DESC
       LIMIT ? OFFSET ?
     `;
-    const items = this.database.queryAll(sql, [...params, pageSize, offset]) as User[];
+    const items = await this.database.queryAll(sql, [...params, pageSize, offset]) as User[];
 
     return {
       items,
@@ -84,7 +84,7 @@ export class UserService {
 
     const now = new Date().toISOString();
     const sql = `UPDATE User SET isBanned = ?, updatedAt = ? WHERE id = ?`;
-    this.database.run(sql, [isBanned ? 1 : 0, now, id]);
+    await this.database.run(sql, [isBanned ? 1 : 0, now, id]);
 
     return (await this.findById(id)) as User;
   }
@@ -96,7 +96,7 @@ export class UserService {
     }
 
     const sql = `DELETE FROM User WHERE id = ?`;
-    this.database.run(sql, [id]);
+    await this.database.run(sql, [id]);
   }
 
   async create(data: {
@@ -111,7 +111,7 @@ export class UserService {
     }
 
     // 检查是否是第一个用户（系统中没有其他用户）
-    const userCount = this.database.queryOne('SELECT COUNT(*) as count FROM User');
+    const userCount = await this.database.queryOne('SELECT COUNT(*) as count FROM User');
     const isFirstUser = !userCount || userCount.count === 0;
 
     const saltRounds = 10;
@@ -124,7 +124,7 @@ export class UserService {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    this.database.run(sql, [
+    await this.database.run(sql, [
       id,
       data.email,
       passwordHash,
@@ -189,7 +189,7 @@ export class UserService {
     params.push(id);
 
     const sql = `UPDATE User SET ${updates.join(', ')} WHERE id = ?`;
-    this.database.run(sql, params);
+    await this.database.run(sql, params);
 
     return (await this.findById(id)) as User;
   }
@@ -205,7 +205,7 @@ export class UserService {
     const now = new Date().toISOString();
 
     const sql = `UPDATE User SET passwordHash = ?, updatedAt = ? WHERE id = ?`;
-    this.database.run(sql, [passwordHash, now, id]);
+    await this.database.run(sql, [passwordHash, now, id]);
 
     return (await this.findById(id)) as User;
   }
