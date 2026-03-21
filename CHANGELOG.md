@@ -43,6 +43,12 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - 中文：新增包管理器自动识别与统一前端脚本入口（`scripts/package-manager.js`、`scripts/run-client-script.js`），兼容 bun/pnpm/npm/yarn。
 - EN: Added project changelog documentation file (`CHANGELOG.md`) with bilingual structure.
 - 中文：新增项目更新日志文件（`CHANGELOG.md`），采用中英双语结构。
+- EN: Added group node support (`type='group'`) in knowledge trees, including create/read operations and tree rendering.
+- 中文：新增知识树分组节点能力（`type='group'`），支持创建、查询与树结构展示。
+- EN: Added dedicated settings route and view for group management (`/settings/groups`), separated from page management.
+- 中文：新增分组管理独立设置页与路由（`/settings/groups`），与页面管理解耦。
+- EN: Added "Group" column in page settings list (between Library and Public) to display the parent group name.
+- 中文：页面设置列表新增“组”列（位于“知识库”和“公开”之间），用于展示父分组名称。
 
 ### Changed / 变更
 
@@ -60,6 +66,8 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - 中文：优化公开页侧边栏布局与交互样式（更简洁视觉、底部信息区域稳定贴底）。
 - EN: Refined editor handling for Markdown tables and GFM task list import scenarios.
 - 中文：优化编辑器对 Markdown 表格与 GFM 任务列表的导入处理逻辑。
+- EN: Updated README (`README.md`, `README_ZH.md`) to reflect group-based hierarchy and settings console capabilities while keeping release version at `1.0.0`.
+- 中文：更新 README（`README.md`、`README_ZH.md`）以反映分组层级与设置中心能力，版本仍保持 `1.0.0`。
 
 ### Fixed / 修复
 
@@ -71,3 +79,7 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - 中文：修复编辑器表格单元格左对齐/居中/右对齐的编辑行为。
 - EN: Fixed diagram preview clipping issues (including sequence diagram render area) in editor code block view.
 - 中文：修复编辑器代码块图表预览区域（含时序图）被裁切的问题。
+- EN: Fixed admin user list `createdAt` display showing `Invalid Date` by preserving `Date` objects in backend response translation and adding robust frontend date parsing fallback.
+- 中文：修复管理员用户列表 `createdAt` 显示 `Invalid Date` 的问题：后端响应翻译链路保留 `Date` 对象，前端增加日期解析兜底。
+- EN: Fixed empty-looking actions column for the current admin user by showing explicit non-operable text instead of a blank cell.
+- 中文：修复当前管理员行“操作”列视觉空白的问题，改为显示明确的不可操作提示文本。

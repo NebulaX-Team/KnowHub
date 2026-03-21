@@ -8,6 +8,7 @@ import {
   NButton,
   NSpace,
   NTag,
+  NText,
   NPopconfirm,
   useMessage,
   type DataTableColumns,
@@ -20,7 +21,7 @@ const route = useRoute()
 const message = useMessage()
 const adminStore = useAdminStore()
 const userStore = useUserStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const title = computed(() => {
   const titleKey = route.meta.titleKey as string | undefined
@@ -38,6 +39,49 @@ const pagination = ref<PaginationProps>({
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100]
 })
+
+function parseDateValue(value: unknown): Date | null {
+  if (value === null || value === undefined) return null
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ts = value < 1e12 ? value * 1000 : value
+    const date = new Date(ts)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  if (typeof value === 'string') {
+    const raw = value.trim()
+    if (!raw) return null
+
+    if (/^\d+$/.test(raw)) {
+      return parseDateValue(Number(raw))
+    }
+
+    const normalized = /^\d{4}-\d{2}-\d{2}\s/.test(raw) ? raw.replace(' ', 'T') : raw
+    const date = new Date(normalized)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  return null
+}
+
+function formatDateTime(value: unknown): string {
+  const date = parseDateValue(value)
+  if (!date) return '-'
+
+  return date.toLocaleString(locale.value, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
 
 // Columns for the data table
 const columns = computed<DataTableColumns<AdminUser>>(() => [
@@ -90,57 +134,63 @@ const columns = computed<DataTableColumns<AdminUser>>(() => [
     title: t('settingsPage.users.createdAt'),
     key: 'createdAt',
     minWidth: 180,
-    render: (row) => new Date(row.createdAt).toLocaleString()
+    render: (row) => formatDateTime(row.createdAt)
   },
   {
     title: t('settingsPage.users.actions'),
     key: 'actions',
     width: 200,
     render: (row: AdminUser): ReturnType<typeof h> => {
-      const actions: ReturnType<typeof h>[] = []
-
-      if (row.id !== userStore.userId) {
-        actions.push(
-          h(
-            NButton,
-            {
-              type: row.isBanned ? 'success' : 'error',
-              size: 'small',
-              quaternary: true,
-              onClick: () => handleToggleBan(row)
-            },
-            {
-              default: () => row.isBanned ? t('settingsPage.users.actionUnban') : t('settingsPage.users.actionBan')
-            }
-          )
-        )
-
-        actions.push(
-          h(
-            NPopconfirm,
-            {
-              onPositiveClick: () => handleDelete(row),
-              negativeText: t('common.actions.cancel'),
-              positiveText: t('common.actions.confirm'),
-              placement: 'top-end'
-            },
-            {
-              default: () => t('settingsPage.users.deleteConfirm'),
-              trigger: (): ReturnType<typeof h> => h(
-                NButton,
-                {
-                  type: 'error',
-                  size: 'small',
-                  quaternary: true
-                },
-                {
-                  default: () => t('common.actions.delete')
-                }
-              )
-            }
-          )
+      if (row.id === userStore.userId) {
+        return h(
+          NText,
+          { depth: 3 },
+          { default: () => t('settingsPage.users.currentUserNoActions') }
         )
       }
+
+      const actions: ReturnType<typeof h>[] = []
+
+      actions.push(
+        h(
+          NButton,
+          {
+            type: row.isBanned ? 'success' : 'error',
+            size: 'small',
+            quaternary: true,
+            onClick: () => handleToggleBan(row)
+          },
+          {
+            default: () => row.isBanned ? t('settingsPage.users.actionUnban') : t('settingsPage.users.actionBan')
+          }
+        )
+      )
+
+      actions.push(
+        h(
+          NPopconfirm,
+          {
+            onPositiveClick: () => handleDelete(row),
+            negativeText: t('common.actions.cancel'),
+            positiveText: t('common.actions.confirm'),
+            placement: 'top-end'
+          },
+          {
+            default: () => t('settingsPage.users.deleteConfirm'),
+            trigger: (): ReturnType<typeof h> => h(
+              NButton,
+              {
+                type: 'error',
+                size: 'small',
+                quaternary: true
+              },
+              {
+                default: () => t('common.actions.delete')
+              }
+            )
+          }
+        )
+      )
 
       return h(NSpace, { size: 'small' }, { default: () => actions })
     }

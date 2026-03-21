@@ -47,6 +47,7 @@ const showHistory = ref(false)
 const showTasks = ref(false)
 const showPublic = ref(false)
 const showVersionHistory = ref(false)
+const isGroupPage = computed(() => pageStore.currentPage?.type === 'group')
 
 // Load page data
 const loadPage = async () => {
@@ -83,6 +84,22 @@ onMounted(loadPage)
 
 watch(() => pageId.value, loadPage)
 
+const getParentTitle = (parentId?: string) => {
+  if (!parentId) return ''
+
+  const parentInStore = pageStore.pages.find(page => page.id === parentId)
+  if (parentInStore?.title) {
+    return parentInStore.title
+  }
+
+  const currentParent = (pageStore.currentPage as any)?.parent
+  if (currentParent?.id === parentId && currentParent?.title) {
+    return currentParent.title
+  }
+
+  return t('pageContent.breadcrumb.parentFallback')
+}
+
 // Breadcrumbs
 const breadcrumbs = computed(() => {
   const crumbs = []
@@ -115,11 +132,9 @@ const breadcrumbs = computed(() => {
 
   // Parent
   if (pageStore.currentPage?.parentId) {
-     // Ideally fetch parent info. For now, just a placeholder if we don't have it.
-     // If we had the tree loaded, we could find it.
      crumbs.push({
-       label: t('pageContent.breadcrumb.parentFallback'),
-       to: undefined // or link to parent if we knew the ID
+       label: getParentTitle(pageStore.currentPage.parentId),
+       to: { name: 'Page', params: { id: pageStore.currentPage.parentId } }
      })
   }
 
@@ -250,6 +265,7 @@ const handleRemoveTag = async (tagId: string) => {
 // Content update
 const handleContentUpdate = useDebounceFn(async (content: any) => {
   if (!pageStore.currentPage) return
+  if (pageStore.currentPage.type === 'group') return
 
   try {
     // In a real app, we might want to check if content actually changed significantly
@@ -441,6 +457,7 @@ const handleMobileActionSelect = (key: string) => {
         :content="pageStore.currentPage.content"
         :page-id="pageStore.currentPage.id"
         :library-id="pageStore.currentPage.libraryId"
+        :editable="!isGroupPage"
         @update="handleContentUpdate"
       />
     </div>

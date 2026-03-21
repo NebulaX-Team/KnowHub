@@ -26,7 +26,7 @@ import {
   SearchOutline,
   OpenOutline,
   TrashOutline,
-  DocumentTextOutline
+  FolderOutline
 } from '@vicons/ionicons5'
 import { pageApi, type PageQueryParams } from '@/api/page'
 import { libraryApi } from '@/api/library'
@@ -50,7 +50,7 @@ const pagination = ref<PaginationProps>({
   itemCount: 0,
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100],
-  prefix: ({ itemCount }) => t('settingsPage.pages.pagination.total', { count: itemCount })
+  prefix: ({ itemCount }) => t('settingsPage.groups.pagination.total', { count: itemCount })
 })
 
 // Stats
@@ -62,7 +62,7 @@ const stats = computed(() => {
 })
 
 const libraryOptions = computed(() => {
-  const options = [{ label: t('settingsPage.pages.filters.allLibraries'), value: '' }]
+  const options = [{ label: t('settingsPage.groups.filters.allLibraries'), value: '' }]
   libraries.value.forEach(lib => {
     options.push({ label: `${lib.icon || '📁'} ${lib.title}`, value: lib.id })
   })
@@ -70,10 +70,10 @@ const libraryOptions = computed(() => {
 })
 
 const sortOptions = computed(() => [
-  { label: t('settingsPage.pages.filters.sortLastUpdated'), value: 'updatedAt' },
-  { label: t('settingsPage.pages.filters.sortCreatedDate'), value: 'createdAt' },
-  { label: t('settingsPage.pages.filters.sortTitle'), value: 'title' },
-  { label: t('settingsPage.pages.filters.sortLastViewed'), value: 'lastViewedAt' }
+  { label: t('settingsPage.groups.filters.sortLastUpdated'), value: 'updatedAt' },
+  { label: t('settingsPage.groups.filters.sortCreatedDate'), value: 'createdAt' },
+  { label: t('settingsPage.groups.filters.sortTitle'), value: 'title' },
+  { label: t('settingsPage.groups.filters.sortLastViewed'), value: 'lastViewedAt' }
 ])
 
 const filteredPages = computed(() => {
@@ -87,22 +87,22 @@ const filteredPages = computed(() => {
 
 const columns = computed<DataTableColumns<Page>>(() => [
   {
-    title: t('settingsPage.pages.table.page'),
+    title: t('settingsPage.groups.table.group'),
     key: 'title',
     minWidth: 200,
     render: (row) => {
       return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
         row.icon
           ? h('span', { style: 'font-size: 16px; flex-shrink: 0;' }, row.icon)
-          : h(NIcon, { size: 16, color: '#999' }, { default: () => h(DocumentTextOutline) }),
+          : h(NIcon, { size: 16, color: '#999' }, { default: () => h(FolderOutline) }),
         h('div', { style: 'min-width: 0;' }, [
-          h(NEllipsis, { style: 'font-weight: 500;' }, { default: () => row.title || t('settingsPage.pages.table.untitled') })
+          h(NEllipsis, { style: 'font-weight: 500;' }, { default: () => row.title || t('settingsPage.groups.table.untitled') })
         ])
       ])
     }
   },
   {
-    title: t('settingsPage.pages.table.library'),
+    title: t('settingsPage.groups.table.library'),
     key: 'libraryTitle',
     width: 160,
     render: (row) => {
@@ -111,16 +111,7 @@ const columns = computed<DataTableColumns<Page>>(() => [
     }
   },
   {
-    title: t('settingsPage.pages.table.group'),
-    key: 'parentTitle',
-    width: 160,
-    render: (row) => {
-      if (!row.parentTitle) return h(NText, { depth: 3 }, { default: () => '-' })
-      return h(NEllipsis, null, { default: () => row.parentTitle })
-    }
-  },
-  {
-    title: t('settingsPage.pages.table.public'),
+    title: t('settingsPage.groups.table.public'),
     key: 'isPublic',
     width: 80,
     align: 'center',
@@ -131,24 +122,24 @@ const columns = computed<DataTableColumns<Page>>(() => [
     }, { default: () => row.isPublic ? t('common.status.yes') : t('common.status.no') })
   },
   {
-    title: t('settingsPage.pages.table.created'),
+    title: t('settingsPage.groups.table.created'),
     key: 'createdAt',
     width: 120,
     render: (row) => new Date(row.createdAt).toLocaleDateString()
   },
   {
-    title: t('settingsPage.pages.table.updated'),
+    title: t('settingsPage.groups.table.updated'),
     key: 'updatedAt',
     width: 120,
     render: (row) => new Date(row.updatedAt).toLocaleDateString()
   },
   {
-    title: t('settingsPage.pages.table.actions'),
+    title: t('settingsPage.groups.table.actions'),
     key: 'actions',
     width: 120,
     fixed: 'right',
     render: (row) => {
-      const rowTitle = row.title || t('settingsPage.pages.table.untitled')
+      const rowTitle = row.title || t('settingsPage.groups.table.untitled')
       return h(NSpace, { size: 'small' }, {
         default: () => [
           h(NTooltip, null, {
@@ -156,14 +147,14 @@ const columns = computed<DataTableColumns<Page>>(() => [
               size: 'small', quaternary: true, circle: true,
               onClick: () => navigateToPage(row)
             }, { icon: () => h(NIcon, { component: OpenOutline }) }),
-            default: () => t('settingsPage.pages.openPage')
+            default: () => t('settingsPage.groups.openGroup')
           }),
           h(NPopconfirm, {
             onPositiveClick: () => handleDelete(row),
             positiveText: t('common.actions.delete'),
             negativeText: t('common.actions.cancel')
           }, {
-            default: () => t('settingsPage.pages.confirmDelete', { title: rowTitle }),
+            default: () => t('settingsPage.groups.confirmDelete', { title: rowTitle }),
             trigger: () => h(NButton, {
               size: 'small', quaternary: true, circle: true, type: 'error'
             }, { icon: () => h(NIcon, { component: TrashOutline }) })
@@ -191,7 +182,7 @@ async function loadPages() {
     const params: PageQueryParams = {
       page: pagination.value.page || 1,
       pageSize: pagination.value.pageSize || 20,
-      nodeType: 'page',
+      nodeType: 'group',
       sortBy: sortBy.value,
       sortDirection: sortDirection.value
     }
@@ -203,10 +194,10 @@ async function loadPages() {
       pages.value = response.data.items
       pagination.value.itemCount = response.data.total
     } else {
-      message.error(t('settingsPage.pages.messages.loadFailed'))
+      message.error(t('settingsPage.groups.messages.loadFailed'))
     }
   } catch {
-    message.error(t('settingsPage.pages.messages.loadFailed'))
+    message.error(t('settingsPage.groups.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -216,13 +207,13 @@ async function handleDelete(page: Page) {
   try {
     const response = await pageApi.deletePage(page.id)
     if (response.code === 0) {
-      message.success(t('settingsPage.pages.messages.deleteSuccess'))
+      message.success(t('settingsPage.groups.messages.deleteSuccess'))
       await loadPages()
     } else {
-      message.error(t('settingsPage.pages.messages.deleteFailed'))
+      message.error(t('settingsPage.groups.messages.deleteFailed'))
     }
   } catch {
-    message.error(t('settingsPage.pages.messages.deleteFailed'))
+    message.error(t('settingsPage.groups.messages.deleteFailed'))
   }
 }
 
@@ -257,17 +248,17 @@ onMounted(() => {
   <div class="settings-page">
     <div class="header">
       <div>
-        <h2>{{ t('settingsPage.pages.title') }}</h2>
-        <p class="description">{{ t('settingsPage.pages.description') }}</p>
+        <h2>{{ t('settingsPage.groups.title') }}</h2>
+        <p class="description">{{ t('settingsPage.groups.description') }}</p>
       </div>
     </div>
 
     <div class="stats-row">
       <NCard size="small" class="stat-card">
-        <NStatistic :label="t('settingsPage.pages.stats.totalPages')" :value="stats.total" />
+        <NStatistic :label="t('settingsPage.groups.stats.totalGroups')" :value="stats.total" />
       </NCard>
       <NCard size="small" class="stat-card">
-        <NStatistic :label="t('settingsPage.pages.stats.publicPages')" :value="stats.publicCount" />
+        <NStatistic :label="t('settingsPage.groups.stats.publicGroups')" :value="stats.publicCount" />
       </NCard>
     </div>
 
@@ -277,7 +268,7 @@ onMounted(() => {
           <NSpace style="flex-wrap: wrap; gap: 8px">
             <NInput
               v-model:value="searchQuery"
-              :placeholder="t('settingsPage.pages.searchPlaceholder')"
+              :placeholder="t('settingsPage.groups.searchPlaceholder')"
               clearable
               style="width: 240px"
             >
@@ -288,7 +279,7 @@ onMounted(() => {
             <NSelect
               v-model:value="filterLibraryId"
               :options="libraryOptions"
-              :placeholder="t('settingsPage.pages.filters.filterByLibrary')"
+              :placeholder="t('settingsPage.groups.filters.filterByLibrary')"
               clearable
               style="width: 200px"
             />
@@ -314,12 +305,12 @@ onMounted(() => {
 
       <NSpin :show="loading">
         <div v-if="filteredPages.length === 0 && !loading" class="empty-state">
-          <NEmpty :description="t('settingsPage.pages.noPages')">
+          <NEmpty :description="t('settingsPage.groups.noGroups')">
             <template #extra>
               <NText depth="3">
                 {{ searchQuery || filterLibraryId
-                  ? t('settingsPage.pages.emptyAdjust')
-                  : t('settingsPage.pages.emptyCreateHint') }}
+                  ? t('settingsPage.groups.emptyAdjust')
+                  : t('settingsPage.groups.emptyCreateHint') }}
               </NText>
             </template>
           </NEmpty>

@@ -3,7 +3,7 @@ import { h, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NLayoutSider, NTree, NText, NIcon, NButton } from 'naive-ui'
 import { useRouter } from 'vue-router'
-import { BookOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5'
+import { BookOutline, FolderOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5'
 import { useSystemStore } from '@/stores/system'
 import { useTheme } from '@/composables/useTheme'
 import type { Page as RawPage, Library } from '@/types'
@@ -47,6 +47,7 @@ const mapToTreeOptions = (nodes: Page[]): TreeOption[] => nodes.map((node) => ({
   id: node.id,
   title: node.title,
   icon: node.icon,
+  type: node.type,
   publicSlug: node.publicSlug,
   children: node.children && node.children.length > 0 ? mapToTreeOptions(node.children) : undefined,
 }))
@@ -55,7 +56,8 @@ const processedTree = computed<TreeOption[]>(() => mapToTreeOptions(props.tree a
 
 const countPages = (nodes: Page[]): number => nodes.reduce((total, node) => {
   const childrenCount = node.children ? countPages(node.children) : 0
-  return total + 1 + childrenCount
+  const currentCount = node.type === 'page' ? 1 : 0
+  return total + currentCount + childrenCount
 }, 0)
 
 const pageCount = computed(() => countPages(props.tree as Page[]))
@@ -78,6 +80,8 @@ function handleSelect(keys: Array<string | number>) {
   const node = findNode(props.tree as Page[], keys[0] as string)
   if (!node) return
 
+  if (node.type === 'group') return
+
   const slug = node.publicSlug || node.id
   router.push(`/public/pages/${slug}`)
 }
@@ -95,6 +99,9 @@ const renderPrefix = ({ option }: { option: TreeOption }) => {
   const page = option as unknown as Page
   if (page.icon) {
     return h('span', { class: 'page-icon' }, page.icon)
+  }
+  if (page.type === 'group') {
+    return h(NIcon, { size: 15 }, { default: () => h(FolderOutline) })
   }
   return ''
 }

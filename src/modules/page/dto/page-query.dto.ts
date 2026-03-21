@@ -29,4 +29,8 @@ export class PageQueryDto {
   @IsOptional()
   @IsString()
   sortDirection?: 'ASC' | 'DESC';
+
+  @IsOptional()
+  @IsString()
+  nodeType?: 'page' | 'group' | 'all';
 }

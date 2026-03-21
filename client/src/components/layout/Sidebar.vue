@@ -21,6 +21,7 @@ import {
 } from 'naive-ui'
 import { 
   AddOutline as AddIcon,
+  FolderOutline as GroupIcon,
   LibraryOutline as LibraryIcon,
   SwapHorizontalOutline as SwapIcon
 } from '@vicons/ionicons5'
@@ -72,6 +73,15 @@ const createPageModel = ref({
   title: ''
 })
 const createPageLoading = ref(false)
+const createPageParentId = ref<string | null>(null)
+
+// Create Group Modal State
+const showCreateGroupModal = ref(false)
+const createGroupModel = ref({
+  title: ''
+})
+const createGroupLoading = ref(false)
+const createGroupParentId = ref<string | null>(null)
 
 // Rename Page Modal State
 const showRenamePageModal = ref(false)
@@ -86,8 +96,16 @@ const contextMenuY = ref(0)
 const currentContextNode = ref<TreeOption | null>(null)
 
 const contextMenuOptions = computed(() => [
+  { label: t('sidebar.menu.newPage'), key: 'new_page' },
+  { label: t('sidebar.menu.newGroup'), key: 'new_group' },
+  { type: 'divider', key: 'd1' },
   { label: t('sidebar.menu.rename'), key: 'rename' },
   { label: t('sidebar.menu.delete'), key: 'delete' }
+])
+
+const createNodeOptions = computed(() => [
+  { label: t('sidebar.menu.newPage'), key: 'new_page' },
+  { label: t('sidebar.menu.newGroup'), key: 'new_group' }
 ])
 
 const librarySwitchOptions = computed(() => {
@@ -119,7 +137,12 @@ const pageTreeOptions = computed(() => {
     return pages.map(page => ({
       label: page.title,
       key: page.id,
-      prefix: page.icon ? () => h('span', { style: 'font-size: 16px; margin-right: 4px;' }, page.icon) : undefined,
+      nodeType: page.type,
+      prefix: page.icon
+        ? () => h('span', { style: 'font-size: 16px; margin-right: 4px;' }, page.icon)
+        : page.type === 'group'
+          ? () => h(NIcon, { size: 16, style: 'margin-right: 4px;' }, { default: () => h(GroupIcon) })
+          : undefined,
       children: page.children && page.children.length > 0 ? mapPages(page.children) : undefined
     }))
   }
@@ -128,6 +151,19 @@ const pageTreeOptions = computed(() => {
 
 const selectedKeys = ref<string[]>([])
 const expandedKeys = ref<string[]>([])
+
+const getNodeType = (id: string): 'page' | 'group' => {
+  const target = pageStore.pages.find(p => p.id === id)
+  return target?.type === 'group' ? 'group' : 'page'
+}
+
+const toggleNodeExpanded = (id: string) => {
+  if (expandedKeys.value.includes(id)) {
+    expandedKeys.value = expandedKeys.value.filter(key => key !== id)
+    return
+  }
+  expandedKeys.value = [...expandedKeys.value, id]
+}
 
 // Actions
 const handleLibraryChange = async (value: string) => {
@@ -147,6 +183,10 @@ const handlePageSelect = (keys: string[]) => {
   if (keys.length > 0) {
     const selectedKey = keys[0]
     selectedKeys.value = [selectedKey]
+    if (getNodeType(selectedKey) === 'group') {
+      toggleNodeExpanded(selectedKey)
+      return
+    }
     router.push(`/page/${selectedKey}`)
   }
 }
@@ -200,13 +240,24 @@ const submitCreateLibrary = async () => {
   }
 }
 
-const handleCreatePage = () => {
+const handleCreatePage = (parentId?: string) => {
   if (!libraryStore.currentLibrary) {
     message.warning(t('sidebar.messages.selectLibraryFirst'))
     return
   }
+  createPageParentId.value = parentId || null
   createPageModel.value = { title: '' }
   showCreatePageModal.value = true
+}
+
+const handleCreateGroup = (parentId?: string) => {
+  if (!libraryStore.currentLibrary) {
+    message.warning(t('sidebar.messages.selectLibraryFirst'))
+    return
+  }
+  createGroupParentId.value = parentId || null
+  createGroupModel.value = { title: '' }
+  showCreateGroupModal.value = true
 }
 
 const submitCreatePage = async () => {
@@ -221,12 +272,18 @@ const submitCreatePage = async () => {
   try {
     const newPage = await pageStore.createPage({
       title: createPageModel.value.title,
-      libraryId: libraryStore.currentLibrary.id
+      libraryId: libraryStore.currentLibrary.id,
+      parentId: createPageParentId.value || undefined,
+      type: 'page'
     })
     
     if (newPage && newPage.id) {
       message.success(t('sidebar.messages.pageCreated'))
       showCreatePageModal.value = false
+      createPageParentId.value = null
+      if (newPage.parentId && !expandedKeys.value.includes(newPage.parentId)) {
+        expandedKeys.value.push(newPage.parentId)
+      }
       router.push(`/page/${newPage.id}`)
     } else {
       console.error('Page created but returned invalid data:', newPage)
@@ -236,6 +293,42 @@ const submitCreatePage = async () => {
     message.error(t('sidebar.messages.createPageFailed'))
   } finally {
     createPageLoading.value = false
+  }
+}
+
+const submitCreateGroup = async () => {
+  if (!createGroupModel.value.title) {
+    message.warning(t('sidebar.messages.enterGroupTitle'))
+    return
+  }
+
+  if (!libraryStore.currentLibrary) return
+
+  createGroupLoading.value = true
+  try {
+    const newGroup = await pageStore.createPage({
+      title: createGroupModel.value.title,
+      libraryId: libraryStore.currentLibrary.id,
+      parentId: createGroupParentId.value || undefined,
+      type: 'group'
+    })
+
+    if (newGroup && newGroup.id) {
+      message.success(t('sidebar.messages.groupCreated'))
+      showCreateGroupModal.value = false
+      selectedKeys.value = [newGroup.id]
+      if (newGroup.parentId && !expandedKeys.value.includes(newGroup.parentId)) {
+        expandedKeys.value.push(newGroup.parentId)
+      }
+      expandedKeys.value = [...expandedKeys.value, newGroup.id]
+      createGroupParentId.value = null
+    } else {
+      message.error(pageStore.error || t('sidebar.messages.createPageInvalid'))
+    }
+  } catch (error) {
+    message.error(t('sidebar.messages.createGroupFailed'))
+  } finally {
+    createGroupLoading.value = false
   }
 }
 
@@ -299,17 +392,28 @@ const handleContextSelect = async (key: string) => {
   if (!currentContextNode.value) return
   
   const pageId = currentContextNode.value.key as string
+  const currentNodeType = getNodeType(pageId)
+
+  if (key === 'new_page') {
+    handleCreatePage(pageId)
+    return
+  }
+
+  if (key === 'new_group') {
+    handleCreateGroup(pageId)
+    return
+  }
   
   if (key === 'delete') {
     dialog.warning({
-      title: t('sidebar.dialog.deletePageTitle'),
-      content: t('sidebar.dialog.deletePageContent'),
+      title: currentNodeType === 'group' ? t('sidebar.dialog.deleteGroupTitle') : t('sidebar.dialog.deletePageTitle'),
+      content: currentNodeType === 'group' ? t('sidebar.dialog.deleteGroupContent') : t('sidebar.dialog.deletePageContent'),
       positiveText: t('common.actions.delete'),
       negativeText: t('common.actions.cancel'),
       onPositiveClick: async () => {
         try {
           await pageStore.deletePage(pageId)
-          message.success(t('sidebar.messages.pageDeleted'))
+          message.success(t('sidebar.messages.itemDeleted'))
           if (libraryStore.currentLibrary) {
             await pageStore.fetchPages(libraryStore.currentLibrary.id)
           }
@@ -332,16 +436,24 @@ const submitRenamePage = async () => {
   renamePageLoading.value = true
   try {
     await pageStore.updatePage(renamePageModel.value.id, { title: renamePageModel.value.title })
-    message.success(t('sidebar.messages.pageRenamed'))
+    message.success(t('sidebar.messages.itemRenamed'))
     showRenamePageModal.value = false
     if (libraryStore.currentLibrary) {
       await pageStore.fetchPages(libraryStore.currentLibrary.id)
     }
   } catch (e) {
-    message.error(t('sidebar.messages.renamePageFailed'))
+    message.error(t('sidebar.messages.renameItemFailed'))
   } finally {
     renamePageLoading.value = false
   }
+}
+
+const handleCreateNodeSelect = (key: string) => {
+  if (key === 'new_group') {
+    handleCreateGroup()
+    return
+  }
+  handleCreatePage()
 }
 
 const handleLibrarySwitch = (key: string) => {
@@ -451,11 +563,13 @@ watch(() => pageStore.currentPage, async (page) => {
       <div class="page-tree-section">
         <div class="tree-header">
           <n-text depth="3" class="section-label">{{ t('sidebar.section.pages') }}</n-text>
-          <n-button text size="tiny" @click="handleCreatePage">
-            <template #icon>
-              <n-icon><AddIcon /></n-icon>
-            </template>
-          </n-button>
+          <n-dropdown trigger="click" :options="createNodeOptions" @select="handleCreateNodeSelect">
+            <n-button text size="tiny">
+              <template #icon>
+                <n-icon><AddIcon /></n-icon>
+              </template>
+            </n-button>
+          </n-dropdown>
         </div>
         
         <n-scrollbar style="max-height: calc(100vh - 200px)">
@@ -551,7 +665,7 @@ watch(() => pageStore.currentPage, async (page) => {
     <n-modal v-model:show="showRenamePageModal">
       <n-card
         style="width: 600px"
-        :title="t('sidebar.modal.renamePageTitle')"
+        :title="t('sidebar.modal.renameItemTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
@@ -567,6 +681,32 @@ watch(() => pageStore.currentPage, async (page) => {
             <n-button @click="showRenamePageModal = false">{{ t('common.actions.cancel') }}</n-button>
             <n-button type="primary" :loading="renamePageLoading" @click="submitRenamePage">
               {{ t('sidebar.actions.rename') }}
+            </n-button>
+          </n-space>
+        </template>
+      </n-card>
+    </n-modal>
+
+    <!-- Create Group Modal -->
+    <n-modal v-model:show="showCreateGroupModal">
+      <n-card
+        style="width: 600px"
+        :title="t('sidebar.modal.createGroupTitle')"
+        :bordered="false"
+        size="huge"
+        role="dialog"
+        aria-modal="true"
+      >
+        <n-form>
+          <n-form-item :label="t('sidebar.labels.title')">
+            <n-input v-model:value="createGroupModel.title" :placeholder="t('sidebar.placeholders.groupTitle')" @keyup.enter="submitCreateGroup" />
+          </n-form-item>
+        </n-form>
+        <template #footer>
+          <n-space justify="end">
+            <n-button @click="showCreateGroupModal = false">{{ t('common.actions.cancel') }}</n-button>
+            <n-button type="primary" :loading="createGroupLoading" @click="submitCreateGroup">
+              {{ t('sidebar.actions.create') }}
             </n-button>
           </n-space>
         </template>

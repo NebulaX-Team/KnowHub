@@ -81,6 +81,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'settings.pages' }
       },
       {
+        path: 'groups',
+        name: 'SettingsGroups',
+        component: () => import('@/views/settings/GroupSettings.vue'),
+        meta: { titleKey: 'settings.groups' }
+      },
+      {
         path: 'archived',
         name: 'SettingsArchived',
         component: () => import('@/views/settings/SettingsPlaceholder.vue'),

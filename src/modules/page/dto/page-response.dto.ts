@@ -17,6 +17,7 @@ export class PageResponseDto {
   libraryId?: string | null;
   libraryTitle?: string | null;
   parentId?: string | null;
+  parentTitle?: string | null;
   // Additional fields for tree structure
   parent?: PageResponseDto | null;
   children?: PageResponseDto[] | null;

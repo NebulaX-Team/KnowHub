@@ -153,6 +153,7 @@ export const usePageStore = defineStore('page', () => {
     content?: any
     icon?: string
     isPublic?: boolean
+    type?: 'page' | 'group'
   }): Promise<Page | null> => {
     setLoading(true)
     setError(null)

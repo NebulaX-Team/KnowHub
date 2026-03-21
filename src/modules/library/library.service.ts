@@ -219,7 +219,7 @@ export class LibraryService {
       console.debug(`Cascading public status ${isPublicVal} (from ${updateLibraryDto.isPublic}) to pages in library ${id}`);
       
       const pages = this.database.query(
-        "SELECT id, publicSlug FROM Page WHERE libraryId = ? AND type = 'page'",
+        "SELECT id, publicSlug FROM Page WHERE libraryId = ? AND type IN ('page', 'group')",
         [id]
       );
       console.debug(`Found ${pages.length} pages to update`);

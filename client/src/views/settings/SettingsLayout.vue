@@ -15,6 +15,7 @@ import {
   LockClosedOutline,
   LibraryOutline,
   DocumentTextOutline,
+  FolderOutline,
   ArchiveOutline,
   ImagesOutline,
   CopyOutline,
@@ -76,6 +77,11 @@ const menuOptions = computed<MenuOption[]>(() => {
           label: t('settings.pages'),
           key: 'pages',
           icon: renderIcon(DocumentTextOutline)
+        },
+        {
+          label: t('settings.groups'),
+          key: 'groups',
+          icon: renderIcon(FolderOutline)
         },
         {
           label: t('settings.archived'),

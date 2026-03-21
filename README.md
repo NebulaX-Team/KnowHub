@@ -24,7 +24,8 @@
 - 📝 **Rich Text Editor** - Tiptap-based editor with tables, task lists, code blocks, and mentions
 - 🏷️ **Tag System** - Organize pages with flexible tagging
 - 🔍 **Full-Text Search** - Fast search across all pages
-- 📚 **Hierarchical Structure** - Libraries and nested pages
+- 📚 **Hierarchical Structure** - Libraries, groups, and nested pages
+- 🗂️ **Group Nodes** - Create folder-like groups inside libraries to organize page trees
 - 🔄 **Version History** - Track changes with page versioning
 - 🔗 **Page References** - Bidirectional linking between pages
 - 📤 **File Uploads** - Image and file uploads with metadata
@@ -36,6 +37,7 @@
 - 🔑 **Password Reset** - Email-based password recovery
 - 👤 **User Management** - Profile and security settings
 - 🛡️ **Admin Controls** - Admin user management
+- ⚙️ **Settings Console** - Separate settings pages for libraries, pages, groups, users, assets, and system configs
 
 ### Technical Features
 - ⚡ **Hot Reload** - Fast development with NestJS and Vite
@@ -76,7 +78,7 @@
 
 ### Prerequisites
 
-- **Node.js** 18+ (LTS recommended)
+- **Node.js** 20+ (LTS recommended)
 - **bun** or **pnpm** (package manager)
 - **Git** (for cloning)
 

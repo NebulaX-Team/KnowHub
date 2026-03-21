@@ -132,9 +132,22 @@ export class PublicService {
   }
 
   async getPublicTree(libraryId: string): Promise<PageResponseDto[]> {
+    const library = this.database.queryOne(
+      "SELECT id FROM Page WHERE id = ? AND type = 'library' AND isPublic = 1",
+      [libraryId]
+    );
+
+    if (!library) {
+      throw new NotFoundException('Library not found or not public');
+    }
+
     const pages = this.database.query(`
       SELECT * FROM Page 
-      WHERE libraryId = ? AND type = 'page' AND isPublic = 1
+      WHERE libraryId = ?
+        AND (
+          (type = 'page' AND isPublic = 1)
+          OR type = 'group'
+        )
       ORDER BY sortOrder ASC
     `, [libraryId]);
 
@@ -149,6 +162,7 @@ export class PublicService {
     const buildTreeFromNode = (node: any): PageResponseDto => {
         return {
           id: node.id,
+          type: node.type,
           title: node.title,
           content: null,
           icon: node.icon,

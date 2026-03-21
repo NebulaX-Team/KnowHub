@@ -8,6 +8,7 @@ export interface CreatePageRequest {
   content?: any
   icon?: string | null
   isPublic?: boolean
+  type?: 'page' | 'group'
 }
 
 export interface UpdatePageRequest {
@@ -23,6 +24,7 @@ export interface UpdatePageRequest {
 export interface PageQueryParams {
   libraryId?: string
   parentId?: string
+  nodeType?: 'page' | 'group' | 'all'
   page?: number
   pageSize?: number
   sortBy?: 'updatedAt' | 'createdAt' | 'title' | 'sortOrder' | 'lastViewedAt'

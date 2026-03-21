@@ -15,6 +15,7 @@ const editing = ref(false)
 const latexInput = ref(props.node.attrs.latex || '')
 const inputRef = ref<HTMLInputElement | null>(null)
 const { t } = useI18n()
+const isEditable = computed(() => !!props.editor?.isEditable)
 
 const renderedHtml = computed(() => {
   const tex = props.node.attrs.latex
@@ -31,7 +32,7 @@ const renderedHtml = computed(() => {
 })
 
 function startEdit() {
-  if (!props.editor.isEditable) return
+  if (!isEditable.value) return
   editing.value = true
   latexInput.value = props.node.attrs.latex || ''
   nextTick(() => {
@@ -65,7 +66,7 @@ onMounted(() => {
     <span
       v-if="!editing"
       class="math-inline-display"
-      :class="{ 'is-selected': selected }"
+      :class="{ 'is-selected': selected && isEditable, 'is-editable': isEditable }"
       @click="startEdit"
     >
       <span v-if="renderedHtml" v-html="renderedHtml" />
@@ -93,7 +94,7 @@ onMounted(() => {
 }
 
 .math-inline-display {
-  cursor: pointer;
+  cursor: default;
   padding: 1px 2px;
   border-radius: 3px;
   transition: background 0.15s;
@@ -103,7 +104,11 @@ onMounted(() => {
     overflow: hidden;
   }
 
-  &:hover {
+  &.is-editable {
+    cursor: pointer;
+  }
+
+  &.is-editable:hover {
     background: var(--color-math-inline-hover);
   }
 

@@ -14,21 +14,19 @@ const props = defineProps<{
 const editing = ref(false)
 const latexInput = ref(props.node.attrs.latex || '')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const errorMsg = ref('')
 const { t } = useI18n()
+const isEditable = computed(() => !!props.editor?.isEditable)
 
 const renderedHtml = computed(() => {
   const tex = props.node.attrs.latex
   if (!tex) return ''
   try {
-    errorMsg.value = ''
     return katex.renderToString(tex, {
       displayMode: true,
       throwOnError: false,
       output: 'htmlAndMathml',
     })
-  } catch (e: any) {
-    errorMsg.value = e.message || t('editor.math.invalidLatex')
+  } catch {
     return ''
   }
 })
@@ -47,11 +45,12 @@ const previewHtml = computed(() => {
 })
 
 function startEdit() {
-  if (!props.editor.isEditable) return
+  if (!isEditable.value) return
   editing.value = true
   latexInput.value = props.node.attrs.latex || ''
   nextTick(() => {
     textareaRef.value?.focus()
+    autoResize()
   })
 }
 
@@ -84,6 +83,12 @@ watch(latexInput, () => {
   nextTick(autoResize)
 })
 
+watch(editing, (isEditing) => {
+  if (isEditing) {
+    nextTick(autoResize)
+  }
+})
+
 onMounted(() => {
   // If empty, start in edit mode
   if (!props.node.attrs.latex) {
@@ -93,9 +98,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <node-view-wrapper class="math-block-wrapper" :class="{ 'is-selected': selected }">
+  <node-view-wrapper class="math-block-wrapper" :class="{ 'is-selected': selected && isEditable }">
     <!-- Display Mode -->
-    <div v-if="!editing" class="math-block-display" @click="startEdit">
+    <div v-if="!editing" class="math-block-display" :class="{ 'is-editable': isEditable }" @click="startEdit">
       <div
         v-if="renderedHtml"
         class="math-block-rendered"
@@ -118,6 +123,7 @@ onMounted(() => {
         class="math-block-textarea"
         :placeholder="t('editor.math.block.placeholder')"
         spellcheck="false"
+        @input="autoResize"
         @keydown="handleKeydown"
         @blur="finishEdit"
         rows="2"
@@ -151,7 +157,7 @@ onMounted(() => {
   border-radius: 6px;
   background: var(--color-math-bg);
   border: 1px solid var(--color-border);
-  cursor: pointer;
+  cursor: default;
   text-align: center;
   transition: border-color 0.15s, box-shadow 0.15s;
   min-height: 40px;
@@ -159,7 +165,11 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
 
-  &:hover {
+  &.is-editable {
+    cursor: pointer;
+  }
+
+  &.is-editable:hover {
     border-color: var(--color-math-placeholder);
     box-shadow: var(--shadow-card);
   }
@@ -216,6 +226,7 @@ onMounted(() => {
   border: none;
   outline: none;
   resize: none;
+  overflow-y: hidden;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 13px;
   line-height: 1.6;

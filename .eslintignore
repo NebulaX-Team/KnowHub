@@ -1,0 +1,8 @@
+dist/
+client/dist/
+node_modules/
+uploads/
+*.db
+*.db-shm
+*.db-wal
+.tmp/

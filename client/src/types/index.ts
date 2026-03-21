@@ -26,7 +26,7 @@ export interface User {
 
 export interface Page {
   id: string
-  type: 'library' | 'page'
+  type: 'library' | 'page' | 'group'
   title: string
   content: any
   description?: string
@@ -36,6 +36,7 @@ export interface Page {
   publicSlug?: string
   sortOrder: number
   parentId?: string
+  parentTitle?: string | null
   libraryId?: string
   libraryTitle?: string
   createdAt: string

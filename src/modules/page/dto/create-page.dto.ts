@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsObject, IsIn } from 'class-validator';
 
 export class CreatePageDto {
   @IsString()
@@ -22,4 +22,8 @@ export class CreatePageDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @IsOptional()
+  @IsIn(['page', 'group'])
+  type?: 'page' | 'group';
 }

@@ -25,10 +25,12 @@ export class PageService {
   async create(userId: string, createPageDto: CreatePageDto): Promise<PageResponseDto> {
     const id = this.generateId();
     const now = new Date().toISOString();
+    const nodeType = createPageDto.type === 'group' ? 'group' : 'page';
+    let isPublic = createPageDto.isPublic;
     
     // Validate library exists and user has access
     const library = this.database.queryOne(
-      "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
+      "SELECT id, isPublic FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
       [createPageDto.libraryId, userId]
     );
     
@@ -39,7 +41,7 @@ export class PageService {
     // Validate parent page exists if provided
     if (createPageDto.parentId) {
       const parent = this.database.queryOne(
-        'SELECT id, libraryId FROM Page WHERE id = ? AND userId = ?',
+        "SELECT id, libraryId, isPublic FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
         [createPageDto.parentId, userId]
       );
       
@@ -51,6 +53,12 @@ export class PageService {
       if (parent.libraryId !== createPageDto.libraryId) {
         throw new ConflictException('Parent page must belong to the same library');
       }
+
+      if (isPublic === undefined) {
+        isPublic = !!parent.isPublic;
+      }
+    } else if (isPublic === undefined) {
+      isPublic = !!library.isPublic;
     }
 
     // Default content to empty doc
@@ -70,13 +78,14 @@ export class PageService {
       INSERT INTO Page (
         id, type, title, content, icon, isPublic, sortOrder, metadata, 
         createdAt, updatedAt, userId, libraryId, parentId, coverImage
-      ) VALUES (?, 'page', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
+      nodeType,
       createPageDto.title,
       contentStr,
       createPageDto.icon || null,
-      createPageDto.isPublic ? 1 : 0,
+      isPublic ? 1 : 0,
       sortOrder,
       null,
       now,
@@ -94,12 +103,28 @@ export class PageService {
    * Find all pages with optional filtering and pagination
    */
   async findAll(userId: string, query: PageQueryDto): Promise<{ items: PageResponseDto[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
-    const { libraryId, parentId, page = 1, pageSize = 20, sortBy = 'sortOrder', sortDirection = 'ASC' } = query;
+    const {
+      libraryId,
+      parentId,
+      page = 1,
+      pageSize = 20,
+      sortBy = 'sortOrder',
+      sortDirection = 'ASC',
+      nodeType = 'all',
+    } = query;
     const offset = (page - 1) * pageSize;
 
     // Build conditions
-    const conditions = ['p.userId = ?', "p.type = 'page'"];
+    const conditions = ['p.userId = ?'];
     const params: any[] = [userId];
+
+    if (nodeType === 'page') {
+      conditions.push("p.type = 'page'");
+    } else if (nodeType === 'group') {
+      conditions.push("p.type = 'group'");
+    } else {
+      conditions.push("p.type IN ('page', 'group')");
+    }
 
     if (libraryId) {
       conditions.push('p.libraryId = ?');
@@ -146,6 +171,7 @@ export class PageService {
 
     const pageResponseItems = items.map(item => ({
       id: item.id,
+      type: item.type,
       title: item.title,
       content: item.content ? JSON.parse(item.content) : { type: 'doc', content: [] },
       description: item.description,
@@ -162,6 +188,7 @@ export class PageService {
       libraryId: item.libraryId,
       libraryTitle: item.libraryTitle,
       parentId: item.parentId,
+      parentTitle: item.parentTitle,
       parent: item.parentId ? { 
         id: item.parentId, 
         title: item.parentTitle,
@@ -209,7 +236,7 @@ export class PageService {
     // Get immediate children
     const children = this.database.query(`
       SELECT * FROM Page 
-      WHERE parentId = ? AND userId = ? AND type = 'page'
+      WHERE parentId = ? AND userId = ? AND type IN ('page', 'group')
       ORDER BY sortOrder ASC
     `, [id, userId]);
 
@@ -239,6 +266,7 @@ export class PageService {
       lastViewedAt: page.lastViewedAt,
       userId: page.userId,
       libraryId: page.libraryId,
+      parentTitle: page.parentTitle,
       parentId: page.parentId,
       parent: page.parentId ? {
         id: page.parentId,
@@ -255,6 +283,7 @@ export class PageService {
       } : null,
       children: children.map(child => ({
         id: child.id,
+        type: child.type,
         title: child.title,
         content: child.content ? JSON.parse(child.content) : { type: 'doc', content: [] },
         description: child.description,
@@ -298,7 +327,7 @@ export class PageService {
     // Get all pages for the library
     const pages = this.database.query(`
       SELECT * FROM Page 
-      WHERE libraryId = ? AND userId = ? AND type = 'page'
+      WHERE libraryId = ? AND userId = ? AND type IN ('page', 'group')
       ORDER BY sortOrder ASC
     `, [libraryId, userId]);
 
@@ -308,6 +337,7 @@ export class PageService {
         .filter(p => p.parentId === parentId)
         .map(page => ({
           id: page.id,
+          type: page.type,
           title: page.title,
           content: page.content ? JSON.parse(page.content) : { type: 'doc', content: [] },
           icon: page.icon,
@@ -358,7 +388,7 @@ export class PageService {
     if (updatePageDto.parentId !== undefined) {
       if (updatePageDto.parentId && updatePageDto.parentId !== page.parentId) {
         const parent = this.database.queryOne(
-          'SELECT id, libraryId FROM Page WHERE id = ? AND userId = ?',
+          "SELECT id, libraryId FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
           [updatePageDto.parentId, userId]
         );
         
@@ -508,7 +538,7 @@ export class PageService {
         }
 
         const parent = this.database.queryOne(
-          'SELECT id, libraryId, parentId FROM Page WHERE id = ? AND userId = ?',
+          "SELECT id, libraryId, parentId FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
           [movePageDto.newParentId, userId]
         );
 

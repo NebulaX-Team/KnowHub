@@ -97,11 +97,21 @@ export function translateKnownMessage(message: string | string[], locale: AppLoc
 export function translatePayloadMessages<T>(payload: T, locale: AppLocale): T {
   if (payload === null || payload === undefined) return payload;
 
+  // Keep Date instances untouched so JSON serialization can preserve ISO strings.
+  if (payload instanceof Date) {
+    return payload;
+  }
+
   if (Array.isArray(payload)) {
     return payload.map((item) => translatePayloadMessages(item, locale)) as T;
   }
 
   if (typeof payload !== 'object') {
+    return payload;
+  }
+
+  const objectProto = Object.getPrototypeOf(payload);
+  if (objectProto !== Object.prototype && objectProto !== null) {
     return payload;
   }
 
