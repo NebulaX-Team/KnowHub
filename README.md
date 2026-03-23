@@ -1,10 +1,9 @@
-# KnowHub - Personal Knowledge Management System
+# KnowHub - Collaborative Knowledge Hub
 
 > Language: [English](./README.md) | [简体中文](./README_ZH.md)
 >
 > Original upstream project: https://github.com/LunaDeerTech/Schema
 >
-> Changelog: [CHANGELOG.md](./CHANGELOG.md)
 
 <p align="center">
   <a href="https://github.com/NebulaX-Team/KnowHub" target="_blank">
@@ -15,7 +14,7 @@
 </p>
 
 <p align="center">
-  <strong>KnowHub</strong> is a modern personal knowledge management system - Think Confluence for personal use.
+  <strong>KnowHub</strong> is a modern knowledge collaboration system for individuals, teams, and organizations.
 </p>
 
 ## ✨ Features
@@ -28,8 +27,14 @@
 - 🗂️ **Group Nodes** - Create folder-like groups inside libraries to organize page trees
 - 🔄 **Version History** - Track changes with page versioning
 - 🔗 **Page References** - Bidirectional linking between pages
+- 📄 **Page Templates** - Built-in and custom templates for quickly creating structured pages
 - 📤 **File Uploads** - Image and file uploads with metadata
 - 👥 **Public Sharing** - Share pages via public URLs with slugs
+- 🤝 **Team Collaboration** - Create teams, manage members, and collaborate across shared knowledge
+- 👑 **Ownership Transfer** - Team owners can transfer ownership to another member in Team Settings
+- 🔐 **Granular Access Control** - Fine-grained permissions for library/group/page (`viewer` / `editor` / `manager`)
+- ✉️ **Invite Workflow** - Invite collaborators by email and accept/decline resource access invitations
+- 🧭 **First-Run Setup Wizard** - Three-step onboarding (`Site Info` → `Admin Account` → `Confirm`) with bilingual site metadata
 
 ### Authentication & Security
 - 🔐 **JWT Authentication** - Secure token-based authentication
@@ -38,6 +43,11 @@
 - 👤 **User Management** - Profile and security settings
 - 🛡️ **Admin Controls** - Admin user management
 - ⚙️ **Settings Console** - Separate settings pages for libraries, pages, groups, users, assets, and system configs
+
+### API Documentation
+
+- English API docs: [`API.md`](./API.md)
+- Chinese API docs: [`API_ZH.md`](./API_ZH.md)
 
 ### Technical Features
 - ⚡ **Hot Reload** - Fast development with NestJS and Vite
@@ -141,6 +151,23 @@ Proxy note:
 ```bash
 VITE_API_PROXY_TARGET=http://localhost:3001 bun run dev:client
 ```
+
+### First-Run Setup
+
+When the database has no users, open `/setup` and complete the wizard:
+
+1. `Site Info` (always shows both Chinese and English fields)
+2. `Admin Account`
+3. `Confirm`
+
+Notes:
+- The top-right language switch changes UI language only; it does not hide Chinese/English site fields.
+- Default site info values:
+  - `zh-CN` title: `知枢 - KnowHub`
+  - `zh-CN` description: `一个面向团队与组织的结构化知识协作系统。`
+  - `en-US` title: `KnowHub`
+  - `en-US` description: `A collaborative knowledge hub designed for individuals, teams, and organizations.`
+- The admin email submitted during setup is normalized to lowercase and can be used to log in immediately after initialization.
 
 ## 🛠️ Development
 
@@ -313,7 +340,6 @@ KnowHub/
 │   ├── database/        # Database layer
 │   │   ├── database.module.ts
 │   │   ├── database.service.ts
-│   │   ├── migrator.ts
 │   │   └── init-db.ts
 │   │
 │   └── modules/         # Feature modules
@@ -326,6 +352,8 @@ KnowHub/
 │       ├── public/
 │       ├── upload/
 │       ├── system/
+│       ├── template/
+│       ├── collab/
 │       └── health/
 │
 ├── client/               # Frontend source

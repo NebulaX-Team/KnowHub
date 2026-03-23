@@ -30,6 +30,8 @@ import {
 } from '@vicons/ionicons5'
 import { uploadApi } from '@/api/upload'
 import { copyToClipboard } from '@/utils/clipboard'
+import { useSystemStore } from '@/stores/system'
+import { formatDateByOffset, parseDateValue } from '@/utils/datetime'
 
 interface UploadedImage {
   id: string
@@ -49,7 +51,8 @@ interface UploadedImage {
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
-const { t } = useI18n()
+const systemStore = useSystemStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const images = ref<UploadedImage[]>([])
@@ -135,6 +138,11 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+}
+
+function getImageCacheBuster(value: string): number {
+  const parsed = parseDateValue(value)
+  return parsed ? parsed.getTime() : Date.now()
 }
 
 function getLocationInfo(image: UploadedImage): { text: string; type: 'success' | 'info' | 'warning' } {
@@ -253,7 +261,7 @@ onMounted(() => {
                 <template #cover>
                   <div class="image-preview-wrapper">
                     <NImage
-                      :src="image.url + '?t=' + new Date(image.createdAt).getTime()"
+                      :src="image.url + '?t=' + getImageCacheBuster(image.createdAt)"
                       :alt="image.originalName"
                       object-fit="cover"
                       class="grid-image"
@@ -283,7 +291,7 @@ onMounted(() => {
 
                   <div class="info-row">
                     <NText depth="3" class="meta-text">
-                      {{ formatFileSize(image.size) }} • {{ new Date(image.createdAt).toLocaleDateString() }}
+                      {{ formatFileSize(image.size) }} • {{ formatDateByOffset(image.createdAt, systemStore.siteTimezone, locale) }}
                     </NText>
                   </div>
                 </div>

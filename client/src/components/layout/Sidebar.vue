@@ -14,6 +14,7 @@ import {
   NForm,
   NFormItem,
   NInput,
+  NSelect,
   NDropdown,
   useMessage,
   useDialog,
@@ -25,8 +26,10 @@ import {
   LibraryOutline as LibraryIcon,
   SwapHorizontalOutline as SwapIcon
 } from '@vicons/ionicons5'
+import { templateApi } from '@/api/template'
 import { useLibraryStore } from '@/stores/library'
 import { usePageStore } from '@/stores/page'
+import type { Template } from '@/types'
 
 const props = defineProps<{
   isMobile?: boolean
@@ -70,10 +73,13 @@ const createLibraryLoading = ref(false)
 // Create Page Modal State
 const showCreatePageModal = ref(false)
 const createPageModel = ref({
-  title: ''
+  title: '',
+  templateId: null as string | null
 })
 const createPageLoading = ref(false)
 const createPageParentId = ref<string | null>(null)
+const templates = ref<Template[]>([])
+const templatesLoading = ref(false)
 
 // Create Group Modal State
 const showCreateGroupModal = ref(false)
@@ -99,6 +105,7 @@ const contextMenuOptions = computed(() => [
   { label: t('sidebar.menu.newPage'), key: 'new_page' },
   { label: t('sidebar.menu.newGroup'), key: 'new_group' },
   { type: 'divider', key: 'd1' },
+  { label: t('sidebar.menu.archive'), key: 'archive' },
   { label: t('sidebar.menu.rename'), key: 'rename' },
   { label: t('sidebar.menu.delete'), key: 'delete' }
 ])
@@ -127,6 +134,17 @@ const librarySwitchOptions = computed(() => {
   })
   
   return options
+})
+
+const templateOptions = computed(() => {
+  return templates.value.map((item) => {
+    const builtInPrefix = item.isBuiltIn ? `[${t('sidebar.labels.builtInTag')}] ` : ''
+    const category = item.category ? ` (${item.category})` : ''
+    return {
+      label: `${builtInPrefix}${item.title}${category}`,
+      value: item.id,
+    }
+  })
 })
 
 
@@ -240,13 +258,47 @@ const submitCreateLibrary = async () => {
   }
 }
 
-const handleCreatePage = (parentId?: string) => {
+const loadTemplates = async () => {
+  templatesLoading.value = true
+  try {
+    const response = await templateApi.getTemplates()
+    if (response.code === 0) {
+      templates.value = response.data
+      return
+    }
+  } catch {
+    // handled below
+  } finally {
+    templatesLoading.value = false
+  }
+  message.error(t('sidebar.messages.loadTemplatesFailed'))
+}
+
+const cloneTemplateContent = (templateId: string | null): Record<string, unknown> | undefined => {
+  if (!templateId) return undefined
+
+  const selectedTemplate = templates.value.find(item => item.id === templateId)
+  if (!selectedTemplate) return undefined
+
+  try {
+    return JSON.parse(JSON.stringify(selectedTemplate.content))
+  } catch {
+    return { type: 'doc', content: [] }
+  }
+}
+
+const handleCreatePage = async (parentId?: string) => {
   if (!libraryStore.currentLibrary) {
     message.warning(t('sidebar.messages.selectLibraryFirst'))
     return
   }
+
+  if (templates.value.length === 0 && !templatesLoading.value) {
+    await loadTemplates()
+  }
+
   createPageParentId.value = parentId || null
-  createPageModel.value = { title: '' }
+  createPageModel.value = { title: '', templateId: null }
   showCreatePageModal.value = true
 }
 
@@ -274,6 +326,7 @@ const submitCreatePage = async () => {
       title: createPageModel.value.title,
       libraryId: libraryStore.currentLibrary.id,
       parentId: createPageParentId.value || undefined,
+      content: cloneTemplateContent(createPageModel.value.templateId),
       type: 'page'
     })
     
@@ -281,6 +334,7 @@ const submitCreatePage = async () => {
       message.success(t('sidebar.messages.pageCreated'))
       showCreatePageModal.value = false
       createPageParentId.value = null
+      createPageModel.value.templateId = null
       if (newPage.parentId && !expandedKeys.value.includes(newPage.parentId)) {
         expandedKeys.value.push(newPage.parentId)
       }
@@ -369,10 +423,16 @@ const handleDrop = async ({ node, dragNode, dropPosition }: { node: TreeOption, 
 
   // Call store action to move page
   try {
-    await pageStore.movePage(dragNodeId, {
+    const moved = await pageStore.movePage(dragNodeId, {
       newParentId: newParentId,
       sortOrder: sortOrder
     })
+
+    if (!moved) {
+      message.error(pageStore.error || t('sidebar.messages.movePageFailed'))
+      return
+    }
+
     message.success(t('sidebar.messages.pageMoved'))
     
     // If dropped inside, expand the target node
@@ -403,6 +463,35 @@ const handleContextSelect = async (key: string) => {
     handleCreateGroup(pageId)
     return
   }
+
+  if (key === 'archive') {
+    dialog.warning({
+      title: currentNodeType === 'group' ? t('sidebar.dialog.archiveGroupTitle') : t('sidebar.dialog.archivePageTitle'),
+      content: currentNodeType === 'group' ? t('sidebar.dialog.archiveGroupContent') : t('sidebar.dialog.archivePageContent'),
+      positiveText: t('sidebar.actions.archive'),
+      negativeText: t('common.actions.cancel'),
+      onPositiveClick: async () => {
+        try {
+          const archived = await pageStore.archivePage(pageId)
+          if (!archived) {
+            message.error(pageStore.error || t('sidebar.messages.archivePageFailed'))
+            return
+          }
+
+          message.success(t('sidebar.messages.itemArchived'))
+          if (libraryStore.currentLibrary) {
+            await pageStore.fetchPages(libraryStore.currentLibrary.id)
+          }
+          if (route.params.id === pageId) {
+            router.push(`/library/${libraryStore.currentLibrary?.id}`)
+          }
+        } catch (e) {
+          message.error(t('sidebar.messages.archivePageFailed'))
+        }
+      }
+    })
+    return
+  }
   
   if (key === 'delete') {
     dialog.warning({
@@ -412,7 +501,12 @@ const handleContextSelect = async (key: string) => {
       negativeText: t('common.actions.cancel'),
       onPositiveClick: async () => {
         try {
-          await pageStore.deletePage(pageId)
+          const deleted = await pageStore.deletePage(pageId)
+          if (!deleted) {
+            message.error(pageStore.error || t('sidebar.messages.deletePageFailed'))
+            return
+          }
+
           message.success(t('sidebar.messages.itemDeleted'))
           if (libraryStore.currentLibrary) {
             await pageStore.fetchPages(libraryStore.currentLibrary.id)
@@ -435,7 +529,12 @@ const submitRenamePage = async () => {
   if (!renamePageModel.value.title) return
   renamePageLoading.value = true
   try {
-    await pageStore.updatePage(renamePageModel.value.id, { title: renamePageModel.value.title })
+    const updated = await pageStore.updatePage(renamePageModel.value.id, { title: renamePageModel.value.title })
+    if (!updated) {
+      message.error(pageStore.error || t('sidebar.messages.renameItemFailed'))
+      return
+    }
+
     message.success(t('sidebar.messages.itemRenamed'))
     showRenamePageModal.value = false
     if (libraryStore.currentLibrary) {
@@ -472,6 +571,7 @@ const navigateToCurrentLibrary = () => {
 
 // Initialization
 onMounted(async () => {
+  await loadTemplates()
   await libraryStore.fetchLibraries()
   
   // If route has library ID, select it
@@ -648,6 +748,16 @@ watch(() => pageStore.currentPage, async (page) => {
         <n-form>
           <n-form-item :label="t('sidebar.labels.title')">
             <n-input v-model:value="createPageModel.title" :placeholder="t('sidebar.placeholders.pageTitle')" @keyup.enter="submitCreatePage" />
+          </n-form-item>
+          <n-form-item :label="t('sidebar.labels.template')">
+            <n-select
+              v-model:value="createPageModel.templateId"
+              :options="templateOptions"
+              :placeholder="t('sidebar.placeholders.templateOptional')"
+              :loading="templatesLoading"
+              clearable
+              filterable
+            />
           </n-form-item>
         </n-form>
         <template #footer>

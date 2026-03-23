@@ -8,5 +8,6 @@ export class SiteInfoResponseDto {
   description: string;
   titleI18n: LocalizedTextResponseDto;
   descriptionI18n: LocalizedTextResponseDto;
+  siteTimezone: string;
   updatedAt: string;
 }

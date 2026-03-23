@@ -22,12 +22,13 @@ export class UserService {
   constructor(private readonly database: DatabaseService) {}
 
   async findByEmail(email: string): Promise<User | null> {
+    const normalizedEmail = email.trim().toLowerCase();
     const sql = `
       SELECT id, email, passwordHash, displayName, avatar, settings, isAdmin, isBanned, isProfilePublic, createdAt, updatedAt
       FROM User
-      WHERE email = ?
+      WHERE LOWER(email) = LOWER(?)
     `;
-    return await this.database.queryOne(sql, [email]) as User | null;
+    return await this.database.queryOne(sql, [normalizedEmail]) as User | null;
   }
 
   async findById(id: string): Promise<User | null> {
@@ -104,8 +105,10 @@ export class UserService {
     password: string;
     displayName?: string;
   }): Promise<User> {
+    const normalizedEmail = data.email.trim().toLowerCase();
+
     // 检查邮箱是否已存在
-    const existingUser = await this.findByEmail(data.email);
+    const existingUser = await this.findByEmail(normalizedEmail);
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
@@ -126,7 +129,7 @@ export class UserService {
 
     await this.database.run(sql, [
       id,
-      data.email,
+      normalizedEmail,
       passwordHash,
       data.displayName || null,
       isFirstUser ? 1 : 0,
@@ -137,7 +140,7 @@ export class UserService {
 
     return {
       id,
-      email: data.email,
+      email: normalizedEmail,
       passwordHash,
       displayName: data.displayName,
       isAdmin: isFirstUser,

@@ -35,6 +35,8 @@ export interface Page {
   isPublic: boolean
   publicSlug?: string
   sortOrder: number
+  isArchived?: boolean
+  archivedAt?: string | null
   parentId?: string
   parentTitle?: string | null
   libraryId?: string
@@ -76,6 +78,18 @@ export interface Task {
   createdAt: string
   updatedAt: string
   completedAt?: string
+}
+
+export interface Template {
+  id: string
+  title: string
+  description?: string | null
+  content: any
+  category?: string | null
+  isBuiltIn: boolean
+  createdAt: string
+  updatedAt: string
+  userId?: string | null
 }
 
 export interface SearchParams {

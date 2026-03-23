@@ -13,6 +13,8 @@ export interface User {
   isAdmin: boolean
   isProfilePublic?: boolean
   isBanned?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface AuthResult {

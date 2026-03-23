@@ -26,6 +26,8 @@ export interface Page {
   publicSlug?: string;
   sortOrder: number;
   metadata?: string;
+  isArchived: boolean;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
   lastViewedAt?: string;
@@ -90,5 +92,45 @@ export interface Template {
 export interface SystemConfig {
   key: string;
   value: string;
+  updatedAt: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamMember {
+  teamId: string;
+  userId: string;
+  role: 'member' | 'admin';
+  joinedAt: string;
+}
+
+export interface PagePermission {
+  id: string;
+  pageId: string;
+  subjectType: 'user' | 'team';
+  subjectId: string;
+  role: 'viewer' | 'editor' | 'manager';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PageInvite {
+  id: string;
+  pageId: string;
+  email: string;
+  role: 'viewer' | 'editor' | 'manager';
+  token: string;
+  invitedBy: string;
+  status: 'pending' | 'accepted' | 'declined' | 'canceled' | 'expired';
+  expiresAt: string;
+  acceptedAt?: string;
+  createdAt: string;
   updatedAt: string;
 }

@@ -6,9 +6,7 @@ import {
   Delete, 
   Body, 
   Param, 
-  UseGuards, 
-  HttpCode, 
-  HttpStatus 
+  UseGuards
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@/modules/auth/jwt-auth.guard';
 import { CurrentUser, CurrentUser as CurrentUserType } from '@/common/decorators/current-user.decorator';

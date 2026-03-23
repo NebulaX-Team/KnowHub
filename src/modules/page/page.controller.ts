@@ -8,8 +8,6 @@ import {
   Param,
   Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@/modules/auth/jwt-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -20,6 +18,7 @@ import { PageQueryDto } from './dto/page-query.dto';
 import { PageTagOperationDto, PageTagsUpdateDto } from './dto/page-tag-operation.dto';
 import { MovePageDto } from './dto/move-page.dto';
 import { CreateVersionDto, CleanupVersionsDto, UpdatePageSettingsDto } from './dto/version-history.dto';
+import { ArchivedQueryDto } from './dto/archived-query.dto';
 
 @Controller('pages')
 @UseGuards(JwtAuthGuard)
@@ -40,6 +39,14 @@ export class PageController {
     @Query() query: PageQueryDto,
   ) {
     return this.pageService.findAll(userId, query);
+  }
+
+  @Get('archived')
+  async getArchived(
+    @CurrentUser('id') userId: string,
+    @Query() query: ArchivedQueryDto,
+  ) {
+    return this.pageService.getArchived(userId, query);
   }
 
   @Get('on-this-day')
@@ -87,6 +94,30 @@ export class PageController {
     @Param('id') id: string,
   ) {
     return this.pageService.remove(userId, id);
+  }
+
+  @Post(':id/archive')
+  async archive(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pageService.archive(userId, id);
+  }
+
+  @Post(':id/unarchive')
+  async unarchive(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pageService.unarchive(userId, id);
+  }
+
+  @Delete(':id/permanent')
+  async removePermanently(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pageService.removePermanently(userId, id);
   }
 
   @Get(':id/tags')

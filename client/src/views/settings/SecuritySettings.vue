@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed, h } from 'vue'
+import { ref, reactive, computed, h, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
+import { useSystemStore } from '@/stores/system'
 import { userApi } from '@/api/user'
+import { formatDateByOffset } from '@/utils/datetime'
 import {
   useMessage,
   useDialog,
@@ -20,6 +22,7 @@ import {
 } from 'naive-ui'
 
 const userStore = useUserStore()
+const systemStore = useSystemStore()
 const message = useMessage()
 const dialog = useDialog()
 const router = useRouter()
@@ -85,13 +88,8 @@ async function handleChangePassword() {
 // ---- Account Info ----
 const accountEmail = computed(() => userStore.user?.email || '')
 const accountCreated = computed(() => {
-  const user = userStore.user as any
-  if (!user?.createdAt) return '-'
-  return new Date(user.createdAt).toLocaleDateString(locale.value, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
+  if (!userStore.user?.createdAt) return '-'
+  return formatDateByOffset(userStore.user.createdAt, systemStore.siteTimezone, locale.value)
 })
 
 // ---- Delete Account ----
@@ -154,6 +152,12 @@ function showDeleteConfirm() {
     }
   })
 }
+
+onMounted(async () => {
+  if (userStore.isAuthenticated && !userStore.user?.createdAt) {
+    await userStore.fetchProfile()
+  }
+})
 </script>
 
 <template>

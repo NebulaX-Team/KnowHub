@@ -14,17 +14,18 @@ export interface SystemConfig {
     'zh-CN': string
     'en-US': string
   }
+  siteTimezone: string
   updatedAt: string
 }
 
 const DEFAULT_TITLE_I18N: Record<AppLocale, string> = {
-  'zh-CN': '知枢',
+  'zh-CN': '知枢 - KnowHub',
   'en-US': 'KnowHub',
 }
 
 const DEFAULT_DESCRIPTION_I18N: Record<AppLocale, string> = {
-  'zh-CN': '面向个人的结构化知识管理系统',
-  'en-US': 'Personal Knowledge Management System',
+  'zh-CN': '一个面向团队与组织的结构化知识协作系统。',
+  'en-US': 'A collaborative knowledge hub designed for individuals, teams, and organizations.',
 }
 
 function normalizeLocalizedText(
@@ -61,6 +62,7 @@ function normalizeConfig(raw: Partial<SiteInfo> | undefined): SystemConfig {
     description: raw?.description?.trim() || descriptionI18n[locale] || DEFAULT_DESCRIPTION_I18N[locale],
     titleI18n,
     descriptionI18n,
+    siteTimezone: raw?.siteTimezone?.trim() || 'UTC+8',
     updatedAt: raw?.updatedAt || new Date().toISOString(),
   }
 }
@@ -81,11 +83,12 @@ export const useSystemStore = defineStore('system', () => {
     return config.value.descriptionI18n[currentLocale.value] || config.value.description
   })
   const siteUpdatedAt = computed(() => config.value.updatedAt)
+  const siteTimezone = computed(() => config.value.siteTimezone || 'UTC+8')
 
   // Actions
-  async function fetchConfig() {
-    if (initialized.value) return // 已初始化，无需重复获取
-    
+  async function fetchConfig(force = false) {
+    if (initialized.value && !force) return // 已初始化，无需重复获取
+
     loading.value = true
     try {
       const response = await systemApi.getSiteInfo()
@@ -128,6 +131,7 @@ export const useSystemStore = defineStore('system', () => {
     siteTitle,
     siteDescription,
     siteUpdatedAt,
+    siteTimezone,
     
     // Actions
     fetchConfig,

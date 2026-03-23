@@ -42,6 +42,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       isAdmin: user.isAdmin,
       isBanned: user.isBanned,
       isProfilePublic: !!user.isProfilePublic,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 }

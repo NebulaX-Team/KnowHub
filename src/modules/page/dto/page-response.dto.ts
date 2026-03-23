@@ -10,6 +10,8 @@ export class PageResponseDto {
   publicSlug?: string | null;
   sortOrder: number | null;
   metadata?: string | null;
+  isArchived?: boolean | null;
+  archivedAt?: string | null;
   createdAt: string | null;
   updatedAt: string | null;
   lastViewedAt?: string | null;

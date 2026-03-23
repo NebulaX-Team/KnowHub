@@ -25,7 +25,7 @@ export class PublicService {
       FROM Page p
       LEFT JOIN Page l ON p.libraryId = l.id
       LEFT JOIN Page parent ON p.parentId = parent.id
-      WHERE p.publicSlug = ? AND p.isPublic = 1 AND p.type = 'page'
+      WHERE p.publicSlug = ? AND p.isPublic = 1 AND p.type = 'page' AND COALESCE(p.isArchived, 0) = 0
     `, [slug]);
 
     // If not found, try by ID (if slug looks like UUID or just fallback)
@@ -38,7 +38,7 @@ export class PublicService {
         FROM Page p
         LEFT JOIN Page l ON p.libraryId = l.id
         LEFT JOIN Page parent ON p.parentId = parent.id
-        WHERE p.id = ? AND p.isPublic = 1 AND p.type = 'page'
+        WHERE p.id = ? AND p.isPublic = 1 AND p.type = 'page' AND COALESCE(p.isArchived, 0) = 0
       `, [slug]);
     }
 
@@ -95,9 +95,9 @@ export class PublicService {
     let library = await this.database.queryOne(`
       SELECT 
         l.*,
-        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1) as pageCount
+        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1 AND COALESCE(p.isArchived, 0) = 0) as pageCount
       FROM Page l
-      WHERE l.publicSlug = ? AND l.isPublic = 1 AND l.type = 'library'
+      WHERE l.publicSlug = ? AND l.isPublic = 1 AND l.type = 'library' AND COALESCE(l.isArchived, 0) = 0
     `, [slug]);
 
     if (!library) {
@@ -105,9 +105,9 @@ export class PublicService {
        library = await this.database.queryOne(`
         SELECT 
           l.*,
-          (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1) as pageCount
+          (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1 AND COALESCE(p.isArchived, 0) = 0) as pageCount
         FROM Page l
-        WHERE l.id = ? AND l.isPublic = 1 AND l.type = 'library'
+        WHERE l.id = ? AND l.isPublic = 1 AND l.type = 'library' AND COALESCE(l.isArchived, 0) = 0
       `, [slug]);
     }
 
@@ -133,7 +133,7 @@ export class PublicService {
 
   async getPublicTree(libraryId: string): Promise<PageResponseDto[]> {
     const library = await this.database.queryOne(
-      "SELECT id FROM Page WHERE id = ? AND type = 'library' AND isPublic = 1",
+      "SELECT id FROM Page WHERE id = ? AND type = 'library' AND isPublic = 1 AND COALESCE(isArchived, 0) = 0",
       [libraryId]
     );
 
@@ -144,6 +144,7 @@ export class PublicService {
     const pages = await this.database.query(`
       SELECT * FROM Page 
       WHERE libraryId = ?
+        AND COALESCE(isArchived, 0) = 0
         AND (
           (type = 'page' AND isPublic = 1)
           OR type = 'group'
@@ -210,9 +211,9 @@ export class PublicService {
     const libraries = await this.database.query(`
       SELECT 
         l.*,
-        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1) as pageCount
+        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND p.isPublic = 1 AND COALESCE(p.isArchived, 0) = 0) as pageCount
       FROM Page l
-      WHERE l.userId = ? AND l.isPublic = 1 AND l.type = 'library'
+      WHERE l.userId = ? AND l.isPublic = 1 AND l.type = 'library' AND COALESCE(l.isArchived, 0) = 0
       ORDER BY l.updatedAt DESC
     `, [user.id]);
 
@@ -238,6 +239,7 @@ export class PublicService {
       WHERE (title LIKE ? OR content LIKE ?) 
       AND isPublic = 1 
       AND type = 'page'
+      AND COALESCE(isArchived, 0) = 0
       LIMIT 20
     `, [`%${query}%`, `%${query}%`]) as PageResponseDto[];
   }

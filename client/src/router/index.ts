@@ -1,8 +1,15 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { systemApi } from '@/api/system'
 
 // Route definitions
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/setup',
+    name: 'Setup',
+    component: () => import('@/views/Setup.vue'),
+    meta: { requiresGuest: true }
+  },
   {
     path: '/login',
     name: 'Login',
@@ -87,9 +94,15 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'settings.groups' }
       },
       {
+        path: 'teams',
+        name: 'SettingsTeams',
+        component: () => import('@/views/settings/TeamSettings.vue'),
+        meta: { titleKey: 'settings.teams' }
+      },
+      {
         path: 'archived',
         name: 'SettingsArchived',
-        component: () => import('@/views/settings/SettingsPlaceholder.vue'),
+        component: () => import('@/views/settings/ArchivedSettings.vue'),
         meta: { titleKey: 'settings.archived' }
       },
       {
@@ -101,7 +114,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'templates',
         name: 'SettingsTemplates',
-        component: () => import('@/views/settings/SettingsPlaceholder.vue'),
+        component: () => import('@/views/settings/TemplateSettings.vue'),
         meta: { titleKey: 'settings.templates' }
       },
       {
@@ -119,7 +132,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'access',
         name: 'SettingsAccess',
-        component: () => import('@/views/settings/SettingsPlaceholder.vue'),
+        component: () => import('@/views/settings/AccessSettings.vue'),
         meta: { titleKey: 'settings.access' }
       },
       {
@@ -166,10 +179,36 @@ const router = createRouter({
 // Navigation guards
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
+  const isSetupRoute = to.name === 'Setup'
   
   // Check if authentication is required
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
+
+  // Enforce first-run setup flow
+  try {
+    const setupStatusRes = await systemApi.getSetupStatus()
+    const needsSetup = !!setupStatusRes.data?.needsSetup
+
+    if (needsSetup) {
+      if (!isSetupRoute) {
+        next({ name: 'Setup', query: { redirect: to.fullPath } })
+        return
+      }
+
+      // Setup route should always be accessible when initialization is required.
+      next()
+      return
+    }
+
+    if (isSetupRoute) {
+      next(userStore.isAuthenticated ? { name: 'Home' } : { name: 'Login' })
+      return
+    }
+  } catch (error) {
+    // Fail open to avoid blocking all navigation when setup status API is temporarily unavailable
+    console.error('Failed to check setup status:', error)
+  }
   
   // If user is authenticated
   if (userStore.isAuthenticated) {

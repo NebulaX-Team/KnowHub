@@ -2,7 +2,7 @@
 
 export const APP_NAME = 'KnowHub'
 export const APP_VERSION = '1.0.0'
-export const APP_DESCRIPTION = '面向个人的结构化知识管理系统'
+export const APP_DESCRIPTION = '面向团队与组织的结构化知识协作系统'
 
 // API Configuration
 export const API_BASE_URL = '/api/v1'

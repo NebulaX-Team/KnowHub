@@ -12,10 +12,24 @@ import { AdminGuard } from '@/modules/auth/admin.guard';
 import { SystemService } from './system.service';
 import { UpdateSiteInfoDto } from './dto/update-site-info.dto';
 import { UpdateSmtpConfigDto, TestSmtpConfigDto } from './dto/smtp-config.dto';
+import { UpdateAccessConfigDto } from './dto/access-config.dto';
+import { InitializeSystemDto } from './dto/setup.dto';
 
 @Controller('system')
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
+
+  // Public endpoint - for startup onboarding
+  @Get('setup-status')
+  async getSetupStatus() {
+    return this.systemService.getSetupStatus();
+  }
+
+  // Public endpoint - only works when system is not initialized
+  @Post('setup')
+  async initializeSystem(@Body() dto: InitializeSystemDto) {
+    return this.systemService.initializeSystem(dto);
+  }
 
   // Public endpoint - no auth required
   @Get('site-info')
@@ -48,5 +62,17 @@ export class SystemController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   async testSmtpConnection(@Body() testSmtpConfigDto: TestSmtpConfigDto) {
     return this.systemService.testSmtpConnection(testSmtpConfigDto);
+  }
+
+  // Public endpoint - used by login/register/forget pages
+  @Get('access-config')
+  async getAccessConfig() {
+    return this.systemService.getAccessConfig();
+  }
+
+  @Put('access-config')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async updateAccessConfig(@Body() updateAccessConfigDto: UpdateAccessConfigDto) {
+    return this.systemService.updateAccessConfig(updateAccessConfigDto);
   }
 }

@@ -3,6 +3,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { pageApi } from '@/api/page'
 import type { PageVersion } from '@/types'
+import { useSystemStore } from '@/stores/system'
+import { formatDateTimeByOffset } from '@/utils/datetime'
 import {
   NDrawer, NDrawerContent, NButton, NIcon, NSpin,
   NTime, NPopconfirm, NSelect, NInput, NAlert, useMessage, NInputGroup, NEmpty,
@@ -25,7 +27,8 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
-const { t } = useI18n()
+const systemStore = useSystemStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const versions = ref<PageVersion[]>([])
@@ -236,7 +239,7 @@ onMounted(() => {
                >
                  <div class="version-meta-row">
                     <div class="version-time-group">
-                      <n-time :time="new Date(version.createdAt)" type="datetime" format="MM-dd HH:mm" class="version-time" />
+                      <span class="version-time">{{ formatDateTimeByOffset(version.createdAt, systemStore.siteTimezone, locale) }}</span>
                       <n-text depth="3" class="relative-time">
                          (<n-time :time="new Date(version.createdAt)" type="relative" />)
                       </n-text>

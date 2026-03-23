@@ -16,13 +16,14 @@ import {
   LibraryOutline,
   DocumentTextOutline,
   FolderOutline,
+  PeopleCircleOutline,
   ArchiveOutline,
   ImagesOutline,
   CopyOutline,
   InformationCircleOutline,
   MailOutline,
   ShieldCheckmarkOutline,
-  PeopleOutline
+  PersonCircleOutline,
 } from '@vicons/ionicons5'
 import TopNavigation from '@/components/layout/TopNavigation.vue'
 import { usePageTitle } from '@/composables/usePageTitle'
@@ -84,6 +85,11 @@ const menuOptions = computed<MenuOption[]>(() => {
           icon: renderIcon(FolderOutline)
         },
         {
+          label: t('settings.teams'),
+          key: 'teams',
+          icon: renderIcon(PeopleCircleOutline)
+        },
+        {
           label: t('settings.archived'),
           key: 'archived',
           icon: renderIcon(ArchiveOutline)
@@ -126,7 +132,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         {
           label: t('settings.users'),
           key: 'users',
-          icon: renderIcon(PeopleOutline)
+          icon: renderIcon(PersonCircleOutline)
         }
       ]
     })

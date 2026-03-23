@@ -9,24 +9,28 @@
           :rules="emailRules"
           @submit.prevent="handleSendVerification"
         >
-          <n-form-item path="email" :label="t('common.form.email')">
-            <n-input
-              v-model:value="emailForm.email"
-              :placeholder="t('common.placeholder.email')"
-              type="email"
-              :disabled="userStore.loading"
-            />
-          </n-form-item>
+	          <n-form-item path="email" :label="t('common.form.email')">
+	            <n-input
+	              v-model:value="emailForm.email"
+	              :placeholder="t('common.placeholder.email')"
+	              type="email"
+	              :disabled="userStore.loading"
+	            />
+	          </n-form-item>
 
-          <n-space vertical :size="16">
-            <n-button
-              type="primary"
-              size="large"
-              :loading="userStore.loading"
-              :disabled="userStore.loading"
-              block
-              attr-type="submit"
-            >
+	          <n-alert v-if="!passwordResetEnabled" type="warning" style="margin-bottom: 16px;">
+	            {{ t('auth.forgetPassword.closed') }}
+	          </n-alert>
+
+	          <n-space vertical :size="16">
+	            <n-button
+	              type="primary"
+	              size="large"
+	              :loading="userStore.loading"
+	              :disabled="userStore.loading || accessLoading || !passwordResetEnabled"
+	              block
+	              attr-type="submit"
+	            >
               {{ t('auth.forgetPassword.sendCode') }}
             </n-button>
 
@@ -152,11 +156,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useMessage, type FormInst, type FormRules } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
+import { systemApi, type AccessConfig } from '@/api/system'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -167,6 +172,11 @@ const { t } = useI18n()
 const currentStep = ref<1 | 2 | 3>(1)
 const countdown = ref(0)
 let countdownTimer: NodeJS.Timeout | null = null
+const accessLoading = ref(false)
+const accessConfig = ref<AccessConfig>({
+  allowRegistration: true,
+  allowPasswordReset: true,
+})
 
 // Step 1: Email form
 const emailFormRef = ref<FormInst | null>(null)
@@ -230,6 +240,8 @@ const cardTitle = computed(() => {
   }
 })
 
+const passwordResetEnabled = computed(() => accessConfig.value.allowPasswordReset)
+
 // Methods
 const startCountdown = (seconds: number = 60) => {
   countdown.value = seconds
@@ -243,6 +255,11 @@ const startCountdown = (seconds: number = 60) => {
 }
 
 const handleSendVerification = async () => {
+  if (!passwordResetEnabled.value) {
+    message.warning(t('auth.forgetPassword.closed'))
+    return
+  }
+
   try {
     await emailFormRef.value?.validate()
 
@@ -287,6 +304,11 @@ const handleVerifyCode = async () => {
 }
 
 const handleResendCode = async () => {
+  if (!passwordResetEnabled.value) {
+    message.warning(t('auth.forgetPassword.closed'))
+    return
+  }
+
   if (countdown.value > 0) return
 
   const result = await userStore.sendResetPassword({
@@ -306,6 +328,11 @@ const handleResendCode = async () => {
 }
 
 const handleCompleteReset = async () => {
+  if (!passwordResetEnabled.value) {
+    message.warning(t('auth.forgetPassword.closed'))
+    return
+  }
+
   try {
     await resetFormRef.value?.validate()
 
@@ -326,7 +353,29 @@ const handleCompleteReset = async () => {
   }
 }
 
+const loadAccessConfig = async () => {
+  accessLoading.value = true
+  try {
+    const response = await systemApi.getAccessConfig()
+    if (response.code === 0) {
+      accessConfig.value = {
+        allowRegistration: !!response.data.allowRegistration,
+        allowPasswordReset: !!response.data.allowPasswordReset,
+      }
+      return
+    }
+  } catch {
+    // ignore and keep default
+  } finally {
+    accessLoading.value = false
+  }
+}
+
 // Cleanup countdown timer on unmount
+onMounted(() => {
+  loadAccessConfig()
+})
+
 onUnmounted(() => {
   if (countdownTimer) {
     clearInterval(countdownTimer)

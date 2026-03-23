@@ -26,4 +26,8 @@ export class UpdateSiteInfoDto {
   @IsOptional()
   @IsObject()
   descriptionI18n?: LocalizedTextDto;
+
+  @IsOptional()
+  @IsString()
+  siteTimezone?: string;
 }

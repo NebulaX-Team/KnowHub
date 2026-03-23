@@ -16,11 +16,14 @@ import {
 } from 'naive-ui'
 import { useAdminStore, type AdminUser } from '@/stores/admin'
 import { useUserStore } from '@/stores/user'
+import { useSystemStore } from '@/stores/system'
+import { formatDateTimeByOffset } from '@/utils/datetime'
 
 const route = useRoute()
 const message = useMessage()
 const adminStore = useAdminStore()
 const userStore = useUserStore()
+const systemStore = useSystemStore()
 const { t, locale } = useI18n()
 
 const title = computed(() => {
@@ -39,49 +42,6 @@ const pagination = ref<PaginationProps>({
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100]
 })
-
-function parseDateValue(value: unknown): Date | null {
-  if (value === null || value === undefined) return null
-
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const ts = value < 1e12 ? value * 1000 : value
-    const date = new Date(ts)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  if (typeof value === 'string') {
-    const raw = value.trim()
-    if (!raw) return null
-
-    if (/^\d+$/.test(raw)) {
-      return parseDateValue(Number(raw))
-    }
-
-    const normalized = /^\d{4}-\d{2}-\d{2}\s/.test(raw) ? raw.replace(' ', 'T') : raw
-    const date = new Date(normalized)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  return null
-}
-
-function formatDateTime(value: unknown): string {
-  const date = parseDateValue(value)
-  if (!date) return '-'
-
-  return date.toLocaleString(locale.value, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
 
 // Columns for the data table
 const columns = computed<DataTableColumns<AdminUser>>(() => [
@@ -134,7 +94,7 @@ const columns = computed<DataTableColumns<AdminUser>>(() => [
     title: t('settingsPage.users.createdAt'),
     key: 'createdAt',
     minWidth: 180,
-    render: (row) => formatDateTime(row.createdAt)
+    render: (row) => formatDateTimeByOffset(row.createdAt, systemStore.siteTimezone, locale.value)
   },
   {
     title: t('settingsPage.users.actions'),
@@ -261,7 +221,8 @@ function handlePageSizeChange(size: number) {
   loadUsers()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await systemStore.fetchConfig(true)
   loadUsers()
 })
 </script>

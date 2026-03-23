@@ -44,11 +44,14 @@ import {
 import { useBreakpoints, breakpointsTailwind } from '@vueuse/core'
 import { useUserStore } from '@/stores/user'
 import { useLibraryStore } from '@/stores/library'
+import { useSystemStore } from '@/stores/system'
 import { pageApi } from '@/api/page'
+import { formatDateByOffset, formatWithOptionsByOffset } from '@/utils/datetime'
 
 const router = useRouter()
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
+const systemStore = useSystemStore()
 const message = useMessage()
 const { t, locale } = useI18n()
 const breakpoints = useBreakpoints(breakpointsTailwind)
@@ -134,7 +137,7 @@ const updateGreeting = () => {
 
 // Date
 const currentDate = computed(() => {
-  return new Date().toLocaleDateString(locale.value, {
+  return formatWithOptionsByOffset(Date.now(), systemStore.siteTimezone, locale.value, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -154,7 +157,7 @@ const formatTimeAgo = (dateString: string) => {
   if (diffInSeconds < 3600) return t('home.timeAgo.minutesAgo', { count: Math.floor(diffInSeconds / 60) })
   if (diffInSeconds < 86400) return t('home.timeAgo.hoursAgo', { count: Math.floor(diffInSeconds / 3600) })
   if (diffInSeconds < 604800) return t('home.timeAgo.daysAgo', { count: Math.floor(diffInSeconds / 86400) })
-  return date.toLocaleDateString(locale.value)
+  return formatDateByOffset(dateString, systemStore.siteTimezone, locale.value)
 }
 
 const fetchRecentPages = async () => {
@@ -439,7 +442,7 @@ watch(locale, () => {
               </n-text>
               <template #footer>
                 <n-text depth="3" style="font-size: 12px;">
-                  {{ t('home.labels.lastUpdated', { date: new Date(lib.updatedAt || Date.now()).toLocaleDateString(locale) }) }}
+                  {{ t('home.labels.lastUpdated', { date: formatDateByOffset(lib.updatedAt || Date.now(), systemStore.siteTimezone, locale) }) }}
                 </n-text>
               </template>
             </n-card>
@@ -471,7 +474,7 @@ watch(locale, () => {
                 </div>
                 <div class="compact-bottom">
                   <n-text depth="3" style="font-size: 12px;">{{ t('home.labels.pagesCount', { count: lib.pageCount || 0 }) }}</n-text>
-                  <n-text depth="3" style="font-size: 12px;">{{ new Date(lib.updatedAt || Date.now()).toLocaleDateString(locale) }}</n-text>
+                  <n-text depth="3" style="font-size: 12px;">{{ formatDateByOffset(lib.updatedAt || Date.now(), systemStore.siteTimezone, locale) }}</n-text>
                 </div>
               </div>
             </n-card>
@@ -511,7 +514,7 @@ watch(locale, () => {
                     </n-tag>
                   </n-space>
                   <n-tag size="small" :bordered="false">{{ t('home.labels.pagesCount', { count: lib.pageCount || 0 }) }}</n-tag>
-                  <n-text depth="3" style="font-size: 12px; white-space: nowrap;">{{ new Date(lib.updatedAt || Date.now()).toLocaleDateString(locale) }}</n-text>
+                  <n-text depth="3" style="font-size: 12px; white-space: nowrap;">{{ formatDateByOffset(lib.updatedAt || Date.now(), systemStore.siteTimezone, locale) }}</n-text>
                   <n-dropdown trigger="click" :options="libraryOptions" @select="(key) => handleLibraryAction(key, lib.id)">
                     <n-button quaternary circle size="small" @click.stop>
                       <template #icon><n-icon><MoreIcon /></n-icon></template>

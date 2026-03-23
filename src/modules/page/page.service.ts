@@ -6,17 +6,35 @@ import { MovePageDto } from './dto/move-page.dto';
 import { PageQueryDto } from './dto/page-query.dto';
 import { PageResponseDto } from './dto/page-response.dto';
 import { CreateVersionDto, CleanupVersionsDto, UpdatePageSettingsDto } from './dto/version-history.dto';
+import { ArchivedQueryDto } from './dto/archived-query.dto';
 import { randomUUID } from 'crypto';
+import { AccessRole, CollabService } from '@/modules/collab/collab.service';
 
 @Injectable()
 export class PageService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly collabService: CollabService,
+  ) {}
 
   /**
    * Generate a unique ID
    */
   private generateId(): string {
     return randomUUID();
+  }
+
+  private async filterAccessibleRows<T extends { id: string }>(
+    userId: string,
+    rows: T[],
+    role: AccessRole = 'viewer',
+    options?: { includeArchived?: boolean },
+  ): Promise<T[]> {
+    const checks = await Promise.all(
+      rows.map((row) => this.collabService.hasPageAccess(userId, row.id, role, options)),
+    );
+
+    return rows.filter((_, index) => checks[index]);
   }
 
   /**
@@ -27,28 +45,35 @@ export class PageService {
     const now = new Date().toISOString();
     const nodeType = createPageDto.type === 'group' ? 'group' : 'page';
     let isPublic = createPageDto.isPublic;
-    
-    // Validate library exists and user has access
+
+    await this.collabService.assertPageAccess(userId, createPageDto.libraryId, 'editor', {
+      notFoundMessage: 'Library not found',
+    });
+
     const library = await this.database.queryOne(
-      "SELECT id, isPublic FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
-      [createPageDto.libraryId, userId]
+      "SELECT id, type, isPublic FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0",
+      [createPageDto.libraryId],
     );
-    
-    if (!library) {
+
+    if (!library || library.type !== 'library') {
       throw new NotFoundException('Library not found');
     }
 
     // Validate parent page exists if provided
     if (createPageDto.parentId) {
+      await this.collabService.assertPageAccess(userId, createPageDto.parentId, 'editor', {
+        notFoundMessage: 'Parent page not found',
+      });
+
       const parent = await this.database.queryOne(
-        "SELECT id, libraryId, isPublic FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
-        [createPageDto.parentId, userId]
+        "SELECT id, libraryId, isPublic FROM Page WHERE id = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0",
+        [createPageDto.parentId],
       );
-      
+
       if (!parent) {
         throw new NotFoundException('Parent page not found');
       }
-      
+
       // Ensure parent belongs to same library
       if (parent.libraryId !== createPageDto.libraryId) {
         throw new ConflictException('Parent page must belong to the same library');
@@ -69,32 +94,35 @@ export class PageService {
     const maxSortResult = await this.database.queryOne(
       `SELECT COALESCE(MAX(sortOrder), 0) as maxSort 
        FROM Page 
-       WHERE libraryId = ? AND parentId ${createPageDto.parentId ? '= ?' : 'IS NULL'}`,
-      createPageDto.parentId ? [createPageDto.libraryId, createPageDto.parentId] : [createPageDto.libraryId]
+       WHERE libraryId = ? AND COALESCE(isArchived, 0) = 0 AND parentId ${createPageDto.parentId ? '= ?' : 'IS NULL'}`,
+      createPageDto.parentId ? [createPageDto.libraryId, createPageDto.parentId] : [createPageDto.libraryId],
     );
     const sortOrder = (maxSortResult.maxSort || 0) + 1;
 
-    await this.database.run(`
+    await this.database.run(
+      `
       INSERT INTO Page (
         id, type, title, content, icon, isPublic, sortOrder, metadata, 
         createdAt, updatedAt, userId, libraryId, parentId, coverImage
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      id,
-      nodeType,
-      createPageDto.title,
-      contentStr,
-      createPageDto.icon || null,
-      isPublic ? 1 : 0,
-      sortOrder,
-      null,
-      now,
-      now,
-      userId,
-      createPageDto.libraryId,
-      createPageDto.parentId || null,
-      null
-    ]);
+    `,
+      [
+        id,
+        nodeType,
+        createPageDto.title,
+        contentStr,
+        createPageDto.icon || null,
+        isPublic ? 1 : 0,
+        sortOrder,
+        null,
+        now,
+        now,
+        userId,
+        createPageDto.libraryId,
+        createPageDto.parentId || null,
+        null,
+      ],
+    );
 
     return this.findOne(userId, id);
   }
@@ -115,8 +143,8 @@ export class PageService {
     const offset = (page - 1) * pageSize;
 
     // Build conditions
-    const conditions = ['p.userId = ?'];
-    const params: any[] = [userId];
+    const conditions = ['COALESCE(p.isArchived, 0) = 0'];
+    const params: any[] = [];
 
     if (nodeType === 'page') {
       conditions.push("p.type = 'page'");
@@ -142,22 +170,13 @@ export class PageService {
 
     const whereClause = conditions.join(' AND ');
 
-    // Get total count
-    const totalResult = await this.database.queryOne(
-      `SELECT COUNT(*) as count 
-       FROM Page p 
-       WHERE ${whereClause}`,
-      params
-    );
-    const total = totalResult.count;
-
     // Validate sortBy
     const allowedSortFields = ['updatedAt', 'createdAt', 'title', 'sortOrder', 'lastViewedAt'];
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'sortOrder';
     const safeSortDirection = sortDirection === 'DESC' ? 'DESC' : 'ASC';
 
-    // Get paginated items
-    const items = await this.database.query(`
+    // Fetch candidates, then apply ACL and pagination in memory
+    const candidates = await this.database.query(`
       SELECT p.*, 
              l.title as libraryTitle,
              parent.title as parentTitle
@@ -166,8 +185,11 @@ export class PageService {
       LEFT JOIN Page parent ON p.parentId = parent.id
       WHERE ${whereClause}
       ORDER BY p.${safeSortBy} ${safeSortDirection}
-      LIMIT ? OFFSET ?
-    `, [...params, pageSize, offset]);
+    `, params);
+
+    const accessibleItems = await this.filterAccessibleRows(userId, candidates, 'viewer');
+    const total = accessibleItems.length;
+    const items = accessibleItems.slice(offset, offset + pageSize);
 
     const pageResponseItems = items.map(item => ({
       id: item.id,
@@ -181,6 +203,8 @@ export class PageService {
       publicSlug: item.publicSlug,
       sortOrder: item.sortOrder,
       metadata: item.metadata ? JSON.parse(item.metadata) : {},
+      isArchived: !!item.isArchived,
+      archivedAt: item.archivedAt || null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       lastViewedAt: item.lastViewedAt,
@@ -195,6 +219,8 @@ export class PageService {
         content: null,
         isPublic: false,
         sortOrder: 0,
+        isArchived: false,
+        archivedAt: null,
         createdAt: null,
         updatedAt: null,
         userId: item.userId,
@@ -217,6 +243,8 @@ export class PageService {
    * Find a single page with parent and children
    */
   async findOne(userId: string, id: string): Promise<PageResponseDto> {
+    await this.collabService.assertPageAccess(userId, id, 'viewer');
+
     const page = await this.database.queryOne(`
       SELECT p.*, 
              l.title as libraryTitle,
@@ -226,19 +254,21 @@ export class PageService {
       FROM Page p
       LEFT JOIN Page l ON p.libraryId = l.id
       LEFT JOIN Page parent ON p.parentId = parent.id
-      WHERE p.id = ? AND p.userId = ?
-    `, [id, userId]);
+      WHERE p.id = ? AND COALESCE(p.isArchived, 0) = 0
+    `, [id]);
 
     if (!page) {
       throw new NotFoundException('Page not found');
     }
 
     // Get immediate children
-    const children = await this.database.query(`
+    const childCandidates = await this.database.query(`
       SELECT * FROM Page 
-      WHERE parentId = ? AND userId = ? AND type IN ('page', 'group')
+      WHERE parentId = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0
       ORDER BY sortOrder ASC
-    `, [id, userId]);
+    `, [id]);
+
+    const children = await this.filterAccessibleRows(userId, childCandidates, 'viewer');
 
     // Get tags
     const tags = await this.database.query(`
@@ -261,6 +291,8 @@ export class PageService {
       publicSlug: page.publicSlug,
       sortOrder: page.sortOrder,
       metadata: page.metadata ? JSON.parse(page.metadata) : {},
+      isArchived: !!page.isArchived,
+      archivedAt: page.archivedAt || null,
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,
       lastViewedAt: page.lastViewedAt,
@@ -275,6 +307,8 @@ export class PageService {
         parentId: page.grandparentId,
         isPublic: false,
         sortOrder: 0,
+        isArchived: false,
+        archivedAt: null,
         createdAt: '',
         updatedAt: '',
         userId: page.userId,
@@ -293,6 +327,8 @@ export class PageService {
         publicSlug: child.publicSlug,
         sortOrder: child.sortOrder,
         metadata: child.metadata ? JSON.parse(child.metadata) : {},
+        isArchived: !!child.isArchived,
+        archivedAt: child.archivedAt || null,
         createdAt: child.createdAt,
         updatedAt: child.updatedAt,
         lastViewedAt: child.lastViewedAt,
@@ -314,22 +350,28 @@ export class PageService {
    * Get tree structure for a library
    */
   async getTree(userId: string, libraryId: string): Promise<PageResponseDto[]> {
-    // Validate library access
+    await this.collabService.assertPageAccess(userId, libraryId, 'viewer', {
+      notFoundMessage: 'Library not found',
+    });
+
     const library = await this.database.queryOne(
-      "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
-      [libraryId, userId]
+      "SELECT id, type FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0",
+      [libraryId],
     );
-    
-    if (!library) {
+
+    if (!library || library.type !== 'library') {
       throw new NotFoundException('Library not found');
     }
 
     // Get all pages for the library
-    const pages = await this.database.query(`
+    const pageCandidates = await this.database.query(`
       SELECT * FROM Page 
-      WHERE libraryId = ? AND userId = ? AND type IN ('page', 'group')
+      WHERE libraryId = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0
       ORDER BY sortOrder ASC
-    `, [libraryId, userId]);
+    `, [libraryId]);
+
+    const pages = await this.filterAccessibleRows(userId, pageCandidates, 'viewer');
+    const visibleIds = new Set(pages.map((page) => page.id));
 
     // Build tree recursively
     const buildTree = (parentId: string | null): PageResponseDto[] => {
@@ -346,6 +388,8 @@ export class PageService {
           publicSlug: page.publicSlug,
           sortOrder: page.sortOrder,
           metadata: page.metadata ? JSON.parse(page.metadata) : {},
+          isArchived: !!page.isArchived,
+          archivedAt: page.archivedAt || null,
           createdAt: page.createdAt,
           updatedAt: page.updatedAt,
           lastViewedAt: page.lastViewedAt,
@@ -356,16 +400,39 @@ export class PageService {
         }));
     };
 
-    return buildTree(null);
+    const roots = pages.filter((page) => !page.parentId || !visibleIds.has(page.parentId));
+    return roots.map((root) => ({
+      id: root.id,
+      type: root.type,
+      title: root.title,
+      content: root.content ? JSON.parse(root.content) : { type: 'doc', content: [] },
+      icon: root.icon,
+      coverImage: root.coverImage,
+      isPublic: !!root.isPublic,
+      publicSlug: root.publicSlug,
+      sortOrder: root.sortOrder,
+      metadata: root.metadata ? JSON.parse(root.metadata) : {},
+      isArchived: !!root.isArchived,
+      archivedAt: root.archivedAt || null,
+      createdAt: root.createdAt,
+      updatedAt: root.updatedAt,
+      lastViewedAt: root.lastViewedAt,
+      userId: root.userId,
+      libraryId: root.libraryId,
+      parentId: root.parentId,
+      children: buildTree(root.id),
+    }));
   }
 
   /**
    * Update a page
    */
   async update(userId: string, id: string, updatePageDto: UpdatePageDto): Promise<PageResponseDto> {
+    await this.collabService.assertPageAccess(userId, id, 'editor');
+
     const page = await this.database.queryOne(
-      'SELECT * FROM Page WHERE id = ? AND userId = ?',
-      [id, userId]
+      'SELECT * FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0',
+      [id],
     );
 
     if (!page) {
@@ -374,11 +441,15 @@ export class PageService {
 
     // Validate library exists if changing
     if (updatePageDto.libraryId && updatePageDto.libraryId !== page.libraryId) {
+      await this.collabService.assertPageAccess(userId, updatePageDto.libraryId, 'editor', {
+        notFoundMessage: 'Library not found',
+      });
+
       const library = await this.database.queryOne(
-        "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
-        [updatePageDto.libraryId, userId]
+        "SELECT id FROM Page WHERE id = ? AND type = 'library' AND COALESCE(isArchived, 0) = 0",
+        [updatePageDto.libraryId],
       );
-      
+
       if (!library) {
         throw new NotFoundException('Library not found');
       }
@@ -387,11 +458,15 @@ export class PageService {
     // Validate parent page if provided
     if (updatePageDto.parentId !== undefined) {
       if (updatePageDto.parentId && updatePageDto.parentId !== page.parentId) {
+        await this.collabService.assertPageAccess(userId, updatePageDto.parentId, 'editor', {
+          notFoundMessage: 'Parent page not found',
+        });
+
         const parent = await this.database.queryOne(
-          "SELECT id, libraryId FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
-          [updatePageDto.parentId, userId]
+          "SELECT id, libraryId FROM Page WHERE id = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0",
+          [updatePageDto.parentId],
         );
-        
+
         if (!parent) {
           throw new NotFoundException('Parent page not found');
         }
@@ -466,11 +541,11 @@ export class PageService {
     updates.push('updatedAt = ?');
     params.push(new Date().toISOString());
 
-    params.push(id, userId);
+    params.push(id);
 
     await this.database.run(
-      `UPDATE Page SET ${updates.join(', ')} WHERE id = ? AND userId = ?`,
-      params
+      `UPDATE Page SET ${updates.join(', ')} WHERE id = ?`,
+      params,
     );
 
     // Create automatic version if content was updated
@@ -513,9 +588,11 @@ export class PageService {
    * Move page to another parent or library
    */
   async move(userId: string, id: string, movePageDto: MovePageDto): Promise<PageResponseDto> {
+    await this.collabService.assertPageAccess(userId, id, 'editor');
+
     const page = await this.database.queryOne(
-      'SELECT * FROM Page WHERE id = ? AND userId = ?',
-      [id, userId]
+      'SELECT * FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0',
+      [id],
     );
 
     if (!page) {
@@ -537,9 +614,13 @@ export class PageService {
           throw new ConflictException('Cannot move page under itself');
         }
 
+        await this.collabService.assertPageAccess(userId, movePageDto.newParentId, 'editor', {
+          notFoundMessage: 'Target parent page not found',
+        });
+
         const parent = await this.database.queryOne(
-          "SELECT id, libraryId, parentId FROM Page WHERE id = ? AND userId = ? AND type IN ('page', 'group')",
-          [movePageDto.newParentId, userId]
+          "SELECT id, libraryId, parentId FROM Page WHERE id = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0",
+          [movePageDto.newParentId],
         );
 
         if (!parent) {
@@ -575,9 +656,13 @@ export class PageService {
     // Handle library change
     if (movePageDto.newLibraryId && movePageDto.newLibraryId !== page.libraryId) {
        if (movePageDto.newParentId === undefined) {
+           await this.collabService.assertPageAccess(userId, movePageDto.newLibraryId, 'editor', {
+             notFoundMessage: 'Target library not found',
+           });
+
            const library = await this.database.queryOne(
-               "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
-               [movePageDto.newLibraryId, userId]
+               "SELECT id FROM Page WHERE id = ? AND type = 'library' AND COALESCE(isArchived, 0) = 0",
+               [movePageDto.newLibraryId]
            );
            if (!library) {
                throw new NotFoundException('Target library not found');
@@ -672,11 +757,10 @@ export class PageService {
       params.push(now);
       
       params.push(id);
-      params.push(userId);
 
       await this.database.run(
-        `UPDATE Page SET ${updates.join(', ')} WHERE id = ? AND userId = ?`,
-        params
+        `UPDATE Page SET ${updates.join(', ')} WHERE id = ?`,
+        params,
       );
     }
 
@@ -687,21 +771,14 @@ export class PageService {
    * Delete a page and its children
    */
   async remove(userId: string, id: string): Promise<{ success: boolean; message: string }> {
-    const page = await this.database.queryOne(
-      'SELECT * FROM Page WHERE id = ? AND userId = ?',
-      [id, userId]
-    );
-
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, id, 'manager');
 
     // Recursive delete function
     const deleteRecursive = async (pageId: string): Promise<void> => {
       // Find children
       const children = await this.database.query(
-        'SELECT id FROM Page WHERE parentId = ? AND userId = ?',
-        [pageId, userId]
+        'SELECT id FROM Page WHERE parentId = ?',
+        [pageId],
       );
 
       // Delete children recursively
@@ -716,6 +793,231 @@ export class PageService {
     await deleteRecursive(id);
 
     return { success: true, message: 'Page deleted successfully' };
+  }
+
+  /**
+   * List archived pages/groups
+   */
+  async getArchived(
+    userId: string,
+    query: ArchivedQueryDto,
+  ): Promise<{ items: PageResponseDto[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+    const {
+      libraryId,
+      page = 1,
+      pageSize = 20,
+      sortBy = 'archivedAt',
+      sortDirection = 'DESC',
+      nodeType = 'all',
+    } = query;
+    const offset = (page - 1) * pageSize;
+
+    const conditions = ['COALESCE(p.isArchived, 0) = 1'];
+    const params: any[] = [];
+
+    if (nodeType === 'page') {
+      conditions.push("p.type = 'page'");
+    } else if (nodeType === 'group') {
+      conditions.push("p.type = 'group'");
+    } else {
+      conditions.push("p.type IN ('page', 'group')");
+    }
+
+    if (libraryId) {
+      conditions.push('p.libraryId = ?');
+      params.push(libraryId);
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    const allowedSortFields = ['archivedAt', 'updatedAt', 'createdAt', 'title'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'archivedAt';
+    const safeSortDirection = sortDirection === 'ASC' ? 'ASC' : 'DESC';
+
+    const candidates = await this.database.query(
+      `SELECT p.*,
+              l.title as libraryTitle,
+              parent.title as parentTitle
+       FROM Page p
+       LEFT JOIN Page l ON p.libraryId = l.id
+       LEFT JOIN Page parent ON p.parentId = parent.id
+       WHERE ${whereClause}
+       ORDER BY p.${safeSortBy} ${safeSortDirection}`,
+      params,
+    );
+
+    const accessibleItems = await this.filterAccessibleRows(userId, candidates, 'viewer', {
+      includeArchived: true,
+    });
+    const total = accessibleItems.length;
+    const items = accessibleItems.slice(offset, offset + pageSize);
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        content: item.content ? JSON.parse(item.content) : { type: 'doc', content: [] },
+        description: item.description,
+        icon: item.icon,
+        coverImage: item.coverImage,
+        isPublic: !!item.isPublic,
+        publicSlug: item.publicSlug,
+        sortOrder: item.sortOrder,
+        metadata: item.metadata ? JSON.parse(item.metadata) : {},
+        isArchived: !!item.isArchived,
+        archivedAt: item.archivedAt || null,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        lastViewedAt: item.lastViewedAt,
+        userId: item.userId,
+        libraryId: item.libraryId,
+        libraryTitle: item.libraryTitle,
+        parentId: item.parentId,
+        parentTitle: item.parentTitle,
+        children: [],
+      })),
+      total,
+      page,
+      pageSize,
+      hasMore: page * pageSize < total,
+    };
+  }
+
+  /**
+   * Archive page/group and descendants
+   */
+  async archive(userId: string, id: string): Promise<{ success: boolean; message: string }> {
+    await this.collabService.assertPageAccess(userId, id, 'manager');
+
+    const page = await this.database.queryOne(
+      "SELECT id, type FROM Page WHERE id = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0",
+      [id],
+    );
+
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    const targetIds = await this.getRecursivePageIds(id);
+    const now = new Date().toISOString();
+
+    const placeholders = targetIds.map(() => '?').join(',');
+    await this.database.run(
+      `UPDATE Page
+       SET isArchived = 1,
+           archivedAt = ?,
+           isPublic = 0,
+           updatedAt = ?
+       WHERE id IN (${placeholders})`,
+      [now, now, ...targetIds],
+    );
+
+    return { success: true, message: 'Page archived successfully' };
+  }
+
+  /**
+   * Restore archived page/group and descendants
+   */
+  async unarchive(userId: string, id: string): Promise<{ success: boolean; message: string }> {
+    await this.collabService.assertPageAccess(userId, id, 'manager', {
+      includeArchived: true,
+    });
+
+    const page = await this.database.queryOne(
+      "SELECT id, parentId, libraryId FROM Page WHERE id = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 1",
+      [id],
+    );
+
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    const library = await this.database.queryOne(
+      "SELECT id FROM Page WHERE id = ? AND type = 'library' AND COALESCE(isArchived, 0) = 0",
+      [page.libraryId]
+    );
+    if (!library) {
+      throw new NotFoundException('Library not found');
+    }
+
+    await this.collabService.assertPageAccess(userId, page.libraryId, 'manager');
+
+    if (page.parentId) {
+      const parent = await this.database.queryOne(
+        'SELECT id, isArchived FROM Page WHERE id = ?',
+        [page.parentId],
+      );
+
+      if (!parent || !!parent.isArchived) {
+        throw new ConflictException('Cannot restore page while parent is archived');
+      }
+    }
+
+    const targetIds = await this.getRecursivePageIds(id);
+    const now = new Date().toISOString();
+    const placeholders = targetIds.map(() => '?').join(',');
+
+    await this.database.run(
+      `UPDATE Page
+       SET isArchived = 0,
+           archivedAt = NULL,
+           updatedAt = ?
+       WHERE id IN (${placeholders})`,
+      [now, ...targetIds],
+    );
+
+    return { success: true, message: 'Page restored successfully' };
+  }
+
+  /**
+   * Permanently delete an archived page/group and descendants
+   */
+  async removePermanently(userId: string, id: string): Promise<{ success: boolean; message: string }> {
+    await this.collabService.assertPageAccess(userId, id, 'manager', {
+      includeArchived: true,
+    });
+
+    const page = await this.database.queryOne(
+      "SELECT id FROM Page WHERE id = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 1",
+      [id]
+    );
+
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    const deleteRecursive = async (pageId: string): Promise<void> => {
+      const children = await this.database.query(
+        'SELECT id FROM Page WHERE parentId = ?',
+        [pageId],
+      );
+
+      for (const child of children) {
+        await deleteRecursive(child.id);
+      }
+
+      await this.database.run('DELETE FROM Page WHERE id = ?', [pageId]);
+    };
+
+    await deleteRecursive(id);
+    return { success: true, message: 'Page permanently deleted successfully' };
+  }
+
+  private async getRecursivePageIds(rootId: string): Promise<string[]> {
+    const rows = await this.database.query(
+      `WITH RECURSIVE page_tree(id) AS (
+         SELECT id FROM Page WHERE id = ?
+         UNION ALL
+         SELECT p.id
+         FROM Page p
+         INNER JOIN page_tree t ON p.parentId = t.id
+       )
+       SELECT id FROM page_tree`,
+      [rootId],
+    );
+
+    return rows.map((row) => row.id);
   }
 
   /**
@@ -753,15 +1055,7 @@ export class PageService {
    * Attach a tag to a page
    */
   async attachTag(userId: string, pageId: string, tagId: string): Promise<{ success: boolean; message: string }> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-    
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'editor');
 
     // Verify tag exists
     const tag = await this.database.queryOne('SELECT id FROM Tag WHERE id = ?', [tagId]);
@@ -791,15 +1085,7 @@ export class PageService {
    * Detach a tag from a page
    */
   async detachTag(userId: string, pageId: string, tagId: string): Promise<{ success: boolean; message: string }> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-    
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'editor');
 
     // Verify the association exists
     const existing = await this.database.queryOne(
@@ -823,15 +1109,7 @@ export class PageService {
    * Update page tags (replace all tags)
    */
   async updateTags(userId: string, pageId: string, tagIds: string[]): Promise<{ success: boolean; message: string }> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-    
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'editor');
 
     // Verify all tags exist
     for (const tagId of tagIds) {
@@ -859,15 +1137,7 @@ export class PageService {
    * Get tags for a page
    */
   async getTags(userId: string, pageId: string): Promise<Array<{ id: string; name: string; color?: string; createdAt: string }>> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'viewer');
 
     const tags = await this.database.query(`
       SELECT t.id, t.name, t.color, t.createdAt
@@ -889,15 +1159,7 @@ export class PageService {
    * Get all versions for a page
    */
   async getVersions(userId: string, pageId: string): Promise<Array<{ id: string; content: any; message?: string; createdAt: string; pageId: string }>> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'viewer');
 
     const versions = await this.database.query(`
       SELECT id, content, message, createdAt, pageId
@@ -919,10 +1181,11 @@ export class PageService {
    * Create a new version for a page
    */
   async createVersion(userId: string, pageId: string, createVersionDto: CreateVersionDto): Promise<{ id: string; content: any; message?: string; createdAt: string; pageId: string }> {
-    // Verify page exists and user has access
+    await this.collabService.assertPageAccess(userId, pageId, 'editor');
+
     const page = await this.database.queryOne(
-      'SELECT id, content FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
+      'SELECT id, content FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0',
+      [pageId]
     );
 
     if (!page) {
@@ -940,9 +1203,9 @@ export class PageService {
     `, [id, contentStr, createVersionDto.message || null, now, pageId]);
 
     // Get retention limit from page metadata
-    const retentionLimit = await this.getVersionRetentionLimit(pageId, userId);
+    const retentionLimit = await this.getVersionRetentionLimit(pageId);
     if (retentionLimit > 0) {
-      await this.enforceRetentionLimit(pageId, userId, retentionLimit);
+      await this.enforceRetentionLimit(pageId, retentionLimit);
     }
 
     return {
@@ -958,15 +1221,7 @@ export class PageService {
    * Restore page to a specific version
    */
   async restoreVersion(userId: string, pageId: string, versionId: string): Promise<PageResponseDto> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'editor');
 
     // Verify version exists and belongs to the page
     const version = await this.database.queryOne(`
@@ -984,8 +1239,8 @@ export class PageService {
     await this.database.run(`
       UPDATE Page
       SET content = ?, updatedAt = ?
-      WHERE id = ? AND userId = ?
-    `, [version.content, now, pageId, userId]);
+      WHERE id = ?
+    `, [version.content, now, pageId]);
 
     // Create a new version for the restored state (optional, but good practice)
     // We can add a message indicating this was a restore
@@ -1005,15 +1260,7 @@ export class PageService {
    * Clean up old versions for a page
    */
   async cleanupVersions(userId: string, pageId: string, cleanupDto: CleanupVersionsDto): Promise<{ success: boolean; deletedCount: number; message: string }> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'manager');
 
     // Calculate cutoff date based on period
     const cutoffDate = new Date();
@@ -1059,15 +1306,7 @@ export class PageService {
    * Delete a specific version for a page
    */
   async deleteVersion(userId: string, pageId: string, versionId: string): Promise<{ success: boolean; message: string }> {
-    // Verify page exists and user has access
-    const page = await this.database.queryOne(
-      'SELECT id FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
-    );
-
-    if (!page) {
-      throw new NotFoundException('Page not found');
-    }
+    await this.collabService.assertPageAccess(userId, pageId, 'manager');
 
     // Verify version exists and belongs to the page
     const version = await this.database.queryOne(
@@ -1095,10 +1334,11 @@ export class PageService {
    * Update page settings (including version retention limit)
    */
   async updatePageSettings(userId: string, pageId: string, updateSettingsDto: UpdatePageSettingsDto): Promise<{ success: boolean; message: string }> {
-    // Verify page exists and user has access
+    await this.collabService.assertPageAccess(userId, pageId, 'manager');
+
     const page = await this.database.queryOne(
-      'SELECT id, metadata FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
+      'SELECT id, metadata FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0',
+      [pageId]
     );
 
     if (!page) {
@@ -1128,12 +1368,12 @@ export class PageService {
     await this.database.run(`
       UPDATE Page
       SET metadata = ?
-      WHERE id = ? AND userId = ?
-    `, [metadataStr, pageId, userId]);
+      WHERE id = ?
+    `, [metadataStr, pageId]);
 
     // If retention limit was reduced, enforce it
     if (updateSettingsDto.versionRetentionLimit !== undefined && updateSettingsDto.versionRetentionLimit > 0) {
-      await this.enforceRetentionLimit(pageId, userId, updateSettingsDto.versionRetentionLimit);
+      await this.enforceRetentionLimit(pageId, updateSettingsDto.versionRetentionLimit);
     }
 
     return {
@@ -1145,10 +1385,10 @@ export class PageService {
   /**
    * Get version retention limit for a page
    */
-  private async getVersionRetentionLimit(pageId: string, userId: string): Promise<number> {
+  private async getVersionRetentionLimit(pageId: string): Promise<number> {
     const page = await this.database.queryOne(
-      'SELECT metadata FROM Page WHERE id = ? AND userId = ?',
-      [pageId, userId]
+      'SELECT metadata FROM Page WHERE id = ? AND COALESCE(isArchived, 0) = 0',
+      [pageId]
     );
 
     if (!page || !page.metadata) {
@@ -1166,7 +1406,7 @@ export class PageService {
   /**
    * Enforce retention limit by deleting oldest versions
    */
-  private async enforceRetentionLimit(pageId: string, userId: string, limit: number): Promise<void> {
+  private async enforceRetentionLimit(pageId: string, limit: number): Promise<void> {
     // Get all version IDs sorted by creation date (oldest first)
     const versions = await this.database.query(`
       SELECT id
@@ -1242,15 +1482,20 @@ export class PageService {
       ? `TO_CHAR(p.createdAt, 'MM-DD') = ? AND EXTRACT(YEAR FROM p.createdAt) < ?`
       : `strftime('%m-%d', p.createdAt) = ? AND CAST(strftime('%Y', p.createdAt) AS INTEGER) < ?`;
 
-    const items = await this.database.query(`
+    const candidateLimit = Math.max(limit * 20, 200);
+    const candidates = await this.database.query(`
       SELECT p.id, p.title, p.icon, p.createdAt, l.title as libraryTitle
       FROM Page p
       LEFT JOIN Page l ON p.libraryId = l.id
-      WHERE p.userId = ? AND p.type = 'page'
+      WHERE p.type = 'page'
+        AND COALESCE(p.isArchived, 0) = 0
         AND ${onThisDayCondition}
       ORDER BY p.createdAt DESC
       LIMIT ?
-    `, [userId, `${month}-${day}`, currentYear, limit]);
+    `, [`${month}-${day}`, currentYear, candidateLimit]);
+
+    const accessibleItems = await this.filterAccessibleRows(userId, candidates, 'viewer');
+    const items = accessibleItems.slice(0, limit);
 
     return items.map(item => ({
       id: item.id,
@@ -1266,14 +1511,19 @@ export class PageService {
    * Get pages that haven't been visited for a long time
    */
   async getLongUnvisited(userId: string, limit = 10): Promise<Array<{ id: string; title: string; icon: string | null; days: number; lastViewedAt: string | null; libraryTitle: string | null }>> {
-    const items = await this.database.query(`
+    const candidateLimit = Math.max(limit * 20, 200);
+    const candidates = await this.database.query(`
       SELECT p.id, p.title, p.icon, p.lastViewedAt, p.createdAt, l.title as libraryTitle
       FROM Page p
       LEFT JOIN Page l ON p.libraryId = l.id
-      WHERE p.userId = ? AND p.type = 'page'
+      WHERE p.type = 'page'
+        AND COALESCE(p.isArchived, 0) = 0
       ORDER BY COALESCE(p.lastViewedAt, p.createdAt) ASC
       LIMIT ?
-    `, [userId, limit]);
+    `, [candidateLimit]);
+
+    const accessibleItems = await this.filterAccessibleRows(userId, candidates, 'viewer');
+    const items = accessibleItems.slice(0, limit);
 
     const now = new Date();
     return items.map(item => {

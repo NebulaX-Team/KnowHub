@@ -20,7 +20,7 @@ export const uploadApi = {
     
     // Log FormData contents
     console.debug('FormData contents:');
-    for (let [key, value] of formData.entries()) {
+    for (const [key, value] of formData.entries()) {
       console.debug(`  ${key}:`, value);
     }
     

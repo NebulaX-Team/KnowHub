@@ -11,6 +11,8 @@ import { SearchModule } from './modules/search/search.module';
 import { PublicModule } from './modules/public/public.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { SystemModule } from './modules/system/system.module';
+import { TemplateModule } from './modules/template/template.module';
+import { CollabModule } from './modules/collab/collab.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { SystemModule } from './modules/system/system.module';
     PublicModule,
     UploadModule,
     SystemModule,
+    TemplateModule,
+    CollabModule,
   ],
   controllers: [],
   providers: [],

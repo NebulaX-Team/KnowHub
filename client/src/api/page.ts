@@ -31,6 +31,15 @@ export interface PageQueryParams {
   sortDirection?: 'ASC' | 'DESC'
 }
 
+export interface ArchivedQueryParams {
+  libraryId?: string
+  nodeType?: 'page' | 'group' | 'all'
+  page?: number
+  pageSize?: number
+  sortBy?: 'archivedAt' | 'updatedAt' | 'createdAt' | 'title'
+  sortDirection?: 'ASC' | 'DESC'
+}
+
 export interface MovePageRequest {
   newParentId?: string | null
   newLibraryId?: string
@@ -60,6 +69,11 @@ export const pageApi = {
     return api.get(`/pages/${id}`)
   },
 
+  // Get archived pages/groups
+  getArchivedPages: async (params?: ArchivedQueryParams): Promise<ApiResponse<PaginatedResponse<Page>>> => {
+    return api.get('/pages/archived', { params })
+  },
+
   // Create new page
   createPage: async (data: CreatePageRequest): Promise<ApiResponse<Page>> => {
     return api.post('/pages', data)
@@ -73,6 +87,21 @@ export const pageApi = {
   // Delete page
   deletePage: async (id: string): Promise<ApiResponse<void>> => {
     return api.delete(`/pages/${id}`)
+  },
+
+  // Archive page/group
+  archivePage: async (id: string): Promise<ApiResponse<{ success: boolean; message: string }>> => {
+    return api.post(`/pages/${id}/archive`)
+  },
+
+  // Restore archived page/group
+  unarchivePage: async (id: string): Promise<ApiResponse<{ success: boolean; message: string }>> => {
+    return api.post(`/pages/${id}/unarchive`)
+  },
+
+  // Permanently delete archived page/group
+  deletePagePermanent: async (id: string): Promise<ApiResponse<{ success: boolean; message: string }>> => {
+    return api.delete(`/pages/${id}/permanent`)
   },
 
   // Move page (change parent or library)

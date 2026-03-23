@@ -6,8 +6,10 @@ import { NSpin, NResult, NTag, NButton, NIcon, useMessage } from 'naive-ui'
 import { ShareSocialOutline } from '@vicons/ionicons5'
 import { api } from '@/api/http'
 import { usePublicStore } from '@/stores/public'
+import { useSystemStore } from '@/stores/system'
 import TiptapEditor from '@/components/editor/TiptapEditor.vue'
 import { copyToClipboard } from '@/utils/clipboard'
+import { formatDateByOffset } from '@/utils/datetime'
 import type { Page } from '@/types'
 
 interface PublicPageData extends Page {
@@ -18,6 +20,7 @@ interface PublicPageData extends Page {
 const route = useRoute()
 const message = useMessage()
 const publicStore = usePublicStore()
+const systemStore = useSystemStore()
 const { t, locale } = useI18n()
 const page = ref<PublicPageData | null>(null)
 const loading = ref(false)
@@ -107,7 +110,7 @@ watch(() => route.params.slug, fetchPage, { immediate: true })
         </div>
         <div class="timestamps">
           <span>
-            {{ t('publicPage.updated', { date: new Date(page.updatedAt).toLocaleDateString(locale) }) }}
+            {{ t('publicPage.updated', { date: formatDateByOffset(page.updatedAt, systemStore.siteTimezone, locale) }) }}
           </span>
         </div>
       </div>

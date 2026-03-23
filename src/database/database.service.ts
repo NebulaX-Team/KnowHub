@@ -54,6 +54,7 @@ export class DatabaseService implements OnModuleDestroy {
     isadmin: 'isAdmin',
     isbanned: 'isBanned',
     isprofilepublic: 'isProfilePublic',
+    isarchived: 'isArchived',
     coverimage: 'coverImage',
     ispublic: 'isPublic',
     publicslug: 'publicSlug',
@@ -69,6 +70,7 @@ export class DatabaseService implements OnModuleDestroy {
     duedate: 'dueDate',
     iscompleted: 'isCompleted',
     completedat: 'completedAt',
+    archivedat: 'archivedAt',
     isbuiltin: 'isBuiltIn',
     originalname: 'originalName',
     mimetype: 'mimeType',
@@ -79,16 +81,30 @@ export class DatabaseService implements OnModuleDestroy {
     parentcontent: 'parentContent',
     grandparentid: 'grandparentId',
     pagecount: 'pageCount',
+    membercount: 'memberCount',
     maxsort: 'maxSort',
+    teamid: 'teamId',
+    ownerid: 'ownerId',
+    memberrole: 'memberRole',
+    joinedat: 'joinedAt',
+    subjecttype: 'subjectType',
+    subjectid: 'subjectId',
+    invitedby: 'invitedBy',
+    expiresat: 'expiresAt',
+    acceptedat: 'acceptedAt',
+    inviteemail: 'inviteEmail',
+    invitername: 'inviterName',
+    teamname: 'teamName',
+    teamdescription: 'teamDescription',
     pagetitle: 'pageTitle',
     pagetype: 'pageType',
-    appliedat: 'appliedAt',
   };
 
   private readonly pgNumericFields = new Set<string>([
     'count',
     'total',
     'pageCount',
+    'memberCount',
     'maxSort',
     'sortOrder',
     'size',
@@ -96,8 +112,21 @@ export class DatabaseService implements OnModuleDestroy {
     'isAdmin',
     'isBanned',
     'isProfilePublic',
+    'isArchived',
     'isCompleted',
   ]);
+  private readonly dateTimeFields = new Set<string>([
+    'createdAt',
+    'updatedAt',
+    'joinedAt',
+    'lastViewedAt',
+    'archivedAt',
+    'dueDate',
+    'completedAt',
+    'expiresAt',
+    'acceptedAt',
+  ]);
+  private readonly pgUtcInitializedClients = new WeakSet<PgClientLike>();
 
   constructor() {
     this.dbType = this.resolveDatabaseType();
@@ -271,8 +300,6 @@ export class DatabaseService implements OnModuleDestroy {
       )
     `);
 
-    // Library table removed - merged into Page
-
     // 创建页面表
     await this.exec(`
       CREATE TABLE IF NOT EXISTS Page (
@@ -287,6 +314,8 @@ export class DatabaseService implements OnModuleDestroy {
         publicSlug TEXT UNIQUE,
         sortOrder INTEGER DEFAULT 0,
         metadata TEXT DEFAULT '{}',
+        isArchived INTEGER DEFAULT 0,
+        archivedAt TIMESTAMP,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         lastViewedAt TIMESTAMP,
@@ -386,6 +415,66 @@ export class DatabaseService implements OnModuleDestroy {
       )
     `);
 
+    // 创建组织（团队）表
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS Team (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        ownerId TEXT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ownerId) REFERENCES User(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 创建组织成员表
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS TeamMember (
+        teamId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        joinedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (teamId, userId),
+        FOREIGN KEY (teamId) REFERENCES Team(id) ON DELETE CASCADE,
+        FOREIGN KEY (userId) REFERENCES User(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 创建资源权限表（资源即 Page：library/group/page）
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS PagePermission (
+        id TEXT PRIMARY KEY,
+        pageId TEXT NOT NULL,
+        subjectType TEXT NOT NULL,
+        subjectId TEXT NOT NULL,
+        role TEXT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pageId) REFERENCES Page(id) ON DELETE CASCADE,
+        UNIQUE(pageId, subjectType, subjectId)
+      )
+    `);
+
+    // 创建资源邀请表
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS PageInvite (
+        id TEXT PRIMARY KEY,
+        pageId TEXT NOT NULL,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        invitedBy TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        expiresAt TIMESTAMP NOT NULL,
+        acceptedAt TIMESTAMP,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pageId) REFERENCES Page(id) ON DELETE CASCADE,
+        FOREIGN KEY (invitedBy) REFERENCES User(id) ON DELETE CASCADE
+      )
+    `);
+
     // 创建上传图片记录表
     await this.exec(`
       CREATE TABLE IF NOT EXISTS UploadedImage (
@@ -424,6 +513,13 @@ export class DatabaseService implements OnModuleDestroy {
       CREATE INDEX IF NOT EXISTS idx_uploaded_image_user ON UploadedImage(userId);
       CREATE INDEX IF NOT EXISTS idx_uploaded_image_page ON UploadedImage(pageId);
       CREATE INDEX IF NOT EXISTS idx_uploaded_image_library ON UploadedImage(libraryId);
+      CREATE INDEX IF NOT EXISTS idx_team_owner ON Team(ownerId);
+      CREATE INDEX IF NOT EXISTS idx_team_member_user ON TeamMember(userId);
+      CREATE INDEX IF NOT EXISTS idx_page_permission_page ON PagePermission(pageId);
+      CREATE INDEX IF NOT EXISTS idx_page_permission_subject ON PagePermission(subjectType, subjectId);
+      CREATE INDEX IF NOT EXISTS idx_page_invite_page ON PageInvite(pageId);
+      CREATE INDEX IF NOT EXISTS idx_page_invite_email_status ON PageInvite(email, status);
+      CREATE INDEX IF NOT EXISTS idx_page_invite_token ON PageInvite(token);
     `);
 
     // 确保唯一约束存在（为已存在的数据表添加唯一索引）
@@ -444,7 +540,8 @@ export class DatabaseService implements OnModuleDestroy {
     }
 
     const stmt = this.sqliteDb!.prepare(sql);
-    return params.length > 0 ? stmt.all(...params) : stmt.all();
+    const rows = params.length > 0 ? stmt.all(...params) : stmt.all();
+    return rows.map((row: Record<string, any>) => this.normalizeSqliteRow(row));
   }
 
   /**
@@ -465,7 +562,8 @@ export class DatabaseService implements OnModuleDestroy {
     }
 
     const stmt = this.sqliteDb!.prepare(sql);
-    return params.length > 0 ? stmt.get(...params) : stmt.get();
+    const row = params.length > 0 ? stmt.get(...params) : stmt.get();
+    return row ? this.normalizeSqliteRow(row as Record<string, any>) : null;
   }
 
   /**
@@ -545,57 +643,6 @@ export class DatabaseService implements OnModuleDestroy {
   }
 
   /**
-   * 检查迁移是否已应用
-   */
-  async isMigrationApplied(migrationName: string): Promise<boolean> {
-    const row = await this.queryOne('SELECT id FROM _migrations WHERE name = ?', [migrationName]);
-    return !!row;
-  }
-
-  /**
-   * 记录迁移已应用
-   */
-  async recordMigration(migrationName: string): Promise<void> {
-    await this.run('INSERT INTO _migrations (name) VALUES (?)', [migrationName]);
-  }
-
-  /**
-   * 获取表的列信息
-   */
-  async getTableColumns(tableName: string): Promise<Array<{ name: string; type: string; notnull: number; dflt_value: any; pk: number }>> {
-    if (this.dbType === 'postgres') {
-      const rows = await this.query(`
-        SELECT
-          c.column_name as name,
-          c.data_type as type,
-          CASE WHEN c.is_nullable = 'NO' THEN 1 ELSE 0 END as notnull,
-          c.column_default as dflt_value,
-          CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 1 ELSE 0 END as pk
-        FROM information_schema.columns c
-        LEFT JOIN information_schema.key_column_usage kcu
-          ON c.table_schema = kcu.table_schema
-          AND c.table_name = kcu.table_name
-          AND c.column_name = kcu.column_name
-        LEFT JOIN information_schema.table_constraints tc
-          ON kcu.constraint_name = tc.constraint_name
-          AND kcu.table_schema = tc.table_schema
-        WHERE c.table_schema = current_schema() AND c.table_name = ?
-        ORDER BY c.ordinal_position
-      `, [tableName]);
-
-      return rows.map(row => ({
-        name: this.pgFieldNameMap[String(row.name).toLowerCase()] || row.name,
-        type: row.type,
-        notnull: Number(row.notnull || 0),
-        dflt_value: row.dflt_value,
-        pk: Number(row.pk || 0),
-      }));
-    }
-
-    return this.sqliteDb!.pragma(`table_info(${tableName})`) as any;
-  }
-
-  /**
    * 检查数据库完整性
    */
   async checkIntegrity(): Promise<boolean> {
@@ -656,17 +703,19 @@ export class DatabaseService implements OnModuleDestroy {
       // 确保网站信息默认配置存在（支持中英文）
       const siteTitleConfig = await this.queryOne('SELECT value FROM SystemConfig WHERE key = ?', ['siteTitle']) as { value: string } | null;
       const siteDescriptionConfig = await this.queryOne('SELECT value FROM SystemConfig WHERE key = ?', ['siteDescription']) as { value: string } | null;
+      const siteTimezoneConfig = await this.queryOne('SELECT value FROM SystemConfig WHERE key = ?', ['siteTimezone']) as { value: string } | null;
 
-      if (!siteTitleConfig || !siteDescriptionConfig) {
+      if (!siteTitleConfig || !siteDescriptionConfig || !siteTimezoneConfig) {
         const now = new Date().toISOString();
         const defaultTitle = JSON.stringify({
-          'zh-CN': '知枢',
+          'zh-CN': '知枢 - KnowHub',
           'en-US': 'KnowHub',
         });
         const defaultDescription = JSON.stringify({
-          'zh-CN': '面向个人的结构化知识管理系统',
-          'en-US': 'Personal Knowledge Management System',
+          'zh-CN': '一个面向团队与组织的结构化知识协作系统。',
+          'en-US': 'A collaborative knowledge hub designed for individuals, teams, and organizations.',
         });
+        const defaultTimezone = 'UTC+8';
 
         if (!siteTitleConfig) {
           await this.run('INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)', ['siteTitle', defaultTitle, now]);
@@ -674,6 +723,10 @@ export class DatabaseService implements OnModuleDestroy {
 
         if (!siteDescriptionConfig) {
           await this.run('INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)', ['siteDescription', defaultDescription, now]);
+        }
+
+        if (!siteTimezoneConfig) {
+          await this.run('INSERT INTO SystemConfig (key, value, updatedAt) VALUES (?, ?, ?)', ['siteTimezone', defaultTimezone, now]);
         }
 
         console.log('✓ Default site info config created');
@@ -699,8 +752,19 @@ export class DatabaseService implements OnModuleDestroy {
     }
 
     const text = this.normalizeSqlForPg(sql);
-    const client = this.pgTxClient ?? this.pgPool!;
-    return client.query(text, params);
+
+    if (this.pgTxClient) {
+      await this.ensurePgClientTimezoneUtc(this.pgTxClient);
+      return this.pgTxClient.query(text, params);
+    }
+
+    const client = await this.pgPool!.connect();
+    try {
+      await this.ensurePgClientTimezoneUtc(client);
+      return await client.query(text, params);
+    } finally {
+      client.release?.();
+    }
   }
 
   private normalizeSqlForPg(sql: string): string {
@@ -711,7 +775,7 @@ export class DatabaseService implements OnModuleDestroy {
   private quotePgTableNames(sql: string): string {
     // 仅替换明确的数据表名，避免误伤普通标识符
     return sql.replace(
-      /\b(User|PageVersion|PageReference|PageTag|Page|Tag|Task|Template|SystemConfig|UploadedImage|_migrations)\b/g,
+      /\b(User|PageVersion|PageReference|PageTag|Page|Tag|Task|Template|SystemConfig|UploadedImage|Team|TeamMember|PagePermission|PageInvite)\b/g,
       '"$1"'
     );
   }
@@ -759,14 +823,24 @@ export class DatabaseService implements OnModuleDestroy {
   }
 
   private normalizePgRow<T extends Record<string, any>>(row: T): T {
+    return this.normalizeResultRow(row, true);
+  }
+
+  private normalizeSqliteRow<T extends Record<string, any>>(row: T): T {
+    return this.normalizeResultRow(row, false);
+  }
+
+  private normalizeResultRow<T extends Record<string, any>>(row: T, mapFieldName: boolean): T {
     const normalized: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(row)) {
-      const mappedKey = this.pgFieldNameMap[key.toLowerCase()] || key;
+      const mappedKey = mapFieldName
+        ? (this.pgFieldNameMap[key.toLowerCase()] || key)
+        : key;
       let mappedValue = value;
 
-      if (mappedValue instanceof Date) {
-        mappedValue = mappedValue.toISOString();
+      if (this.dateTimeFields.has(mappedKey)) {
+        mappedValue = this.normalizeDateTimeValue(mappedValue);
       }
 
       if (
@@ -781,5 +855,71 @@ export class DatabaseService implements OnModuleDestroy {
     }
 
     return normalized as T;
+  }
+
+  private normalizeDateTimeValue(value: unknown): unknown {
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value.toISOString();
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const timestamp = value < 1e12 ? value * 1000 : value;
+      const date = new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? value : date.toISOString();
+    }
+
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const raw = value.trim();
+    if (!raw) {
+      return raw;
+    }
+
+    if (/^\d+$/.test(raw)) {
+      const numeric = Number(raw);
+      return this.normalizeDateTimeValue(numeric);
+    }
+
+    let candidate = raw;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) {
+      candidate = `${candidate}T00:00:00Z`;
+    } else {
+      if (/^\d{4}-\d{2}-\d{2}\s/.test(candidate)) {
+        candidate = candidate.replace(' ', 'T');
+      }
+
+      candidate = candidate.replace(/\.(\d{3})\d+([zZ]|[+-]\d{2}(?::?\d{2})?)$/, '.$1$2');
+
+      if (!this.hasTimezoneInfo(candidate)) {
+        candidate = `${candidate}Z`;
+      }
+    }
+
+    const date = new Date(candidate);
+    if (Number.isNaN(date.getTime())) {
+      return raw;
+    }
+
+    return date.toISOString();
+  }
+
+  private hasTimezoneInfo(value: string): boolean {
+    return /(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$/.test(value);
+  }
+
+  private async ensurePgClientTimezoneUtc(client: PgClientLike): Promise<void> {
+    if (this.pgUtcInitializedClients.has(client)) {
+      return;
+    }
+
+    await client.query(`SET TIME ZONE 'UTC'`);
+    this.pgUtcInitializedClients.add(client);
   }
 }

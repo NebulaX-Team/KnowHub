@@ -11,6 +11,7 @@ export interface SiteInfo {
     'zh-CN': string
     'en-US': string
   }
+  siteTimezone: string
   updatedAt: string
 }
 
@@ -30,6 +31,7 @@ export interface UpdateSiteInfoDto {
     'zh-CN'?: string
     'en-US'?: string
   }
+  siteTimezone?: string
 }
 
 export interface SmtpConfig {
@@ -43,6 +45,39 @@ export interface SmtpConfig {
   registerTemplate?: string
   resetPasswordSubject?: string
   resetPasswordTemplate?: string
+}
+
+export interface AccessConfig {
+  allowRegistration: boolean
+  allowPasswordReset: boolean
+}
+
+export interface SetupStatus {
+  needsSetup: boolean
+  userCount: number
+}
+
+export interface InitializeSystemRequest {
+  siteTitle?: string
+  siteDescription?: string
+  siteTitleI18n?: {
+    'zh-CN'?: string
+    'en-US'?: string
+  }
+  siteDescriptionI18n?: {
+    'zh-CN'?: string
+    'en-US'?: string
+  }
+  siteTimezone?: string
+  adminEmail: string
+  adminPassword: string
+  adminDisplayName?: string
+}
+
+export interface InitializeSystemResponse {
+  initialized: boolean
+  userId: string
+  email: string
 }
 
 export const systemApi = {
@@ -77,5 +112,25 @@ export const systemApi = {
     testEmail?: string;
   }): Promise<{ code: number; data: { success: boolean; message: string } }> {
     return api.post('/system/smtp-test', data)
-  }
+  },
+
+  // Get public access config
+  async getAccessConfig(): Promise<{ code: number; data: AccessConfig }> {
+    return api.get('/system/access-config')
+  },
+
+  // Update access config (admin)
+  async updateAccessConfig(data: Partial<AccessConfig>): Promise<{ code: number; data: AccessConfig }> {
+    return api.put('/system/access-config', data)
+  },
+
+  // Get setup status (public)
+  async getSetupStatus(): Promise<{ code: number; data: SetupStatus }> {
+    return api.get('/system/setup-status')
+  },
+
+  // Initialize system (public, first-run only)
+  async initializeSystem(data: InitializeSystemRequest): Promise<{ code: number; data: InitializeSystemResponse }> {
+    return api.post('/system/setup', data)
+  },
 }

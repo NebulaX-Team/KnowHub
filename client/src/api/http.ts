@@ -42,9 +42,14 @@ http.interceptors.response.use(
       originalRequest._retry = true
       
       // Skip redirect for public API routes - they don't require auth
-      // Also skip for system/site-info which is a public endpoint
+      // Also skip for public system endpoints
       const url = originalRequest.url || ''
-      const isPublicRoute = url.startsWith('/public') || url === '/system/site-info'
+      const isPublicRoute =
+        url.startsWith('/public')
+        || url === '/system/site-info'
+        || url === '/system/access-config'
+        || url === '/system/setup-status'
+        || url === '/system/setup'
       
       if (!isPublicRoute) {
         const userStore = useUserStore()

@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { DatabaseService } from '@/database/database.service';
+import { CollabService, AccessRole } from '@/modules/collab/collab.service';
 import { CreateLibraryDto } from './dto/create-library.dto';
 import { UpdateLibraryDto } from './dto/update-library.dto';
 import { LibraryResponseDto } from './dto/library-response.dto';
-import { randomUUID } from 'crypto';
 
 @Injectable()
 export class LibraryService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly collabService: CollabService,
+  ) {}
 
   /**
    * Generate a unique ID
@@ -16,20 +20,32 @@ export class LibraryService {
     return randomUUID();
   }
 
+  private async filterLibrariesByAccess<T extends { id: string }>(
+    userId: string,
+    rows: T[],
+    role: AccessRole = 'viewer',
+  ): Promise<T[]> {
+    const checks = await Promise.all(
+      rows.map((row) => this.collabService.hasPageAccess(userId, row.id, role)),
+    );
+
+    return rows.filter((_, index) => checks[index]);
+  }
+
   /**
    * Create a new library for the current user
    */
   async create(userId: string, createLibraryDto: CreateLibraryDto): Promise<LibraryResponseDto> {
     const id = this.generateId();
     const now = new Date().toISOString();
-    
+
     // Check if publicSlug already exists
     if (createLibraryDto.publicSlug) {
       const existing = await this.database.queryOne(
         'SELECT id FROM Page WHERE publicSlug = ?',
-        [createLibraryDto.publicSlug]
+        [createLibraryDto.publicSlug],
       );
-      
+
       if (existing) {
         throw new ConflictException('Public slug already exists');
       }
@@ -39,91 +55,112 @@ export class LibraryService {
     const content = createLibraryDto.content ?? { type: 'doc', content: [] };
     const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
 
-    await this.database.run(`
+    await this.database.run(
+      `
       INSERT INTO Page (
-        id, type, title, content, description, icon, sortOrder, isPublic, publicSlug, 
+        id, type, title, content, description, icon, sortOrder, isPublic, publicSlug,
         metadata, createdAt, updatedAt, userId, libraryId, parentId
       ) VALUES (?, 'library', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-    `, [
-      id,
-      createLibraryDto.title,
-      contentStr,
-      createLibraryDto.description || null,
-      createLibraryDto.icon || null,
-      createLibraryDto.sortOrder || 0,
-      createLibraryDto.isPublic ? 1 : 0,
-      createLibraryDto.publicSlug || null,
-      '{}',
-      now,
-      now,
-      userId,
-      id // libraryId points to self
-    ]);
+    `,
+      [
+        id,
+        createLibraryDto.title,
+        contentStr,
+        createLibraryDto.description || null,
+        createLibraryDto.icon || null,
+        createLibraryDto.sortOrder || 0,
+        createLibraryDto.isPublic ? 1 : 0,
+        createLibraryDto.publicSlug || null,
+        '{}',
+        now,
+        now,
+        userId,
+        id, // libraryId points to self
+      ],
+    );
 
     return this.findOne(userId, id);
   }
 
   /**
-   * List all libraries for the current user
+   * List all libraries the current user can access
    */
   async findAll(userId: string): Promise<LibraryResponseDto[]> {
-    const libraries = await this.database.query(`
-      SELECT 
+    const libraries = await this.database.query(
+      `
+      SELECT
         l.*,
-        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page') as pageCount
+        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND COALESCE(p.isArchived, 0) = 0) as pageCount
       FROM Page l
-      WHERE l.userId = ? AND l.type = 'library'
+      WHERE l.type = 'library' AND COALESCE(l.isArchived, 0) = 0
       ORDER BY l.sortOrder ASC, l.createdAt ASC
-    `, [userId]);
+    `,
+    );
 
-    const items = await Promise.all(libraries.map(async lib => {
-      // Get tags for this library
-      const tags = await this.database.query(`
-        SELECT t.* FROM Tag t
-        INNER JOIN PageTag pt ON pt.tagId = t.id
-        WHERE pt.pageId = ?
-      `, [lib.id]);
+    const accessibleLibraries = await this.filterLibrariesByAccess(userId, libraries, 'viewer');
 
-      return {
-        ...lib,
-        isPublic: Boolean(lib.isPublic),
-        content: lib.content ? JSON.parse(lib.content) : { type: 'doc', content: [] },
-        pageCount: lib.pageCount,
-        tags: tags
-      };
-    }));
+    const items = await Promise.all(
+      accessibleLibraries.map(async (lib) => {
+        const tags = await this.database.query(
+          `
+          SELECT t.* FROM Tag t
+          INNER JOIN PageTag pt ON pt.tagId = t.id
+          WHERE pt.pageId = ?
+        `,
+          [lib.id],
+        );
+
+        return {
+          ...lib,
+          isPublic: Boolean(lib.isPublic),
+          content: lib.content ? JSON.parse(lib.content) : { type: 'doc', content: [] },
+          pageCount: Number(lib.pageCount || 0),
+          tags,
+        };
+      }),
+    );
 
     return items as LibraryResponseDto[];
   }
 
   /**
-   * Get a specific library for the current user
+   * Get a specific library that user can access
    */
   async findOne(userId: string, id: string): Promise<LibraryResponseDto> {
-    const library = await this.database.queryOne(`
-      SELECT 
+    await this.collabService.assertPageAccess(userId, id, 'viewer', {
+      notFoundMessage: 'Library not found',
+    });
+
+    const library = await this.database.queryOne(
+      `
+      SELECT
         l.*,
-        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page') as pageCount
+        (SELECT COUNT(*) FROM Page p WHERE p.libraryId = l.id AND p.type = 'page' AND COALESCE(p.isArchived, 0) = 0) as pageCount
       FROM Page l
-      WHERE l.id = ? AND l.userId = ? AND l.type = 'library'
-    `, [id, userId]);
+      WHERE l.id = ? AND l.type = 'library' AND COALESCE(l.isArchived, 0) = 0
+    `,
+      [id],
+    );
 
     if (!library) {
       throw new NotFoundException('Library not found');
     }
 
-    const tags = await this.database.query(`
+    const tags = await this.database.query(
+      `
       SELECT t.* FROM Tag t
       INNER JOIN PageTag pt ON pt.tagId = t.id
       WHERE pt.pageId = ?
-    `, [id]);
+    `,
+      [id],
+    );
 
     return {
       ...library,
       isPublic: Boolean(library.isPublic),
       content: library.content ? JSON.parse(library.content) : { type: 'doc', content: [] },
-      pageCount: library.pageCount,
-      tags: tags
+      pageCount: Number(library.pageCount || 0),
+      tags,
     } as LibraryResponseDto;
   }
 
@@ -131,18 +168,26 @@ export class LibraryService {
    * Update a library
    */
   async update(userId: string, id: string, updateLibraryDto: UpdateLibraryDto): Promise<LibraryResponseDto> {
-    console.debug(`Updating library ${id} for user ${userId}`, updateLibraryDto);
-    // Verify library exists and belongs to user
-    const library = await this.findOne(userId, id);
-    console.debug('Found library:', library);
+    await this.collabService.assertPageAccess(userId, id, 'manager', {
+      notFoundMessage: 'Library not found',
+    });
+
+    const library = await this.database.queryOne(
+      'SELECT * FROM Page WHERE id = ? AND type = \'library\' AND COALESCE(isArchived, 0) = 0',
+      [id],
+    );
+
+    if (!library) {
+      throw new NotFoundException('Library not found');
+    }
 
     // Check publicSlug uniqueness if being updated
     if (updateLibraryDto.publicSlug) {
       const existing = await this.database.queryOne(
         'SELECT id FROM Page WHERE publicSlug = ? AND id != ?',
-        [updateLibraryDto.publicSlug, id]
+        [updateLibraryDto.publicSlug, id],
       );
-      
+
       if (existing) {
         throw new ConflictException('Public slug already exists');
       }
@@ -175,17 +220,15 @@ export class LibraryService {
 
     if (updateLibraryDto.isPublic !== undefined) {
       updates.push('isPublic = ?');
-      // Ensure boolean conversion for main update
-      const isPublicVal = (updateLibraryDto.isPublic === true || String(updateLibraryDto.isPublic) === 'true') ? 1 : 0;
+      const isPublicVal =
+        updateLibraryDto.isPublic === true || String(updateLibraryDto.isPublic) === 'true' ? 1 : 0;
       params.push(isPublicVal);
-      console.debug(`Setting isPublic to ${isPublicVal} for library ${id}`);
 
       if (isPublicVal === 1 && !library.publicSlug) {
-        // Generate simple random slug if not present
-        const newSlug = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        const newSlug =
+          Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
         updates.push('publicSlug = ?');
         params.push(newSlug);
-        console.debug(`Generated new public slug for library ${id}: ${newSlug}`);
       }
     }
 
@@ -200,43 +243,38 @@ export class LibraryService {
     }
 
     if (updates.length === 0) {
-      console.debug('No updates to perform for library', id);
       return this.findOne(userId, id);
     }
 
     updates.push('updatedAt = ?');
     params.push(new Date().toISOString());
     params.push(id);
-    params.push(userId);
 
-    const sql = `UPDATE Page SET ${updates.join(', ')} WHERE id = ? AND userId = ?`;
-    console.debug('Executing library update SQL:', sql, params);
-
+    const sql = `UPDATE Page SET ${updates.join(', ')} WHERE id = ?`;
     await this.database.run(sql, params);
 
     // Cascade update isPublic to all pages in the library if it was changed
     if (updateLibraryDto.isPublic !== undefined) {
-      // Ensure boolean conversion
-      const isPublicVal = (updateLibraryDto.isPublic === true || String(updateLibraryDto.isPublic) === 'true') ? 1 : 0;
-      console.debug(`Cascading public status ${isPublicVal} (from ${updateLibraryDto.isPublic}) to pages in library ${id}`);
-      
+      const isPublicVal =
+        updateLibraryDto.isPublic === true || String(updateLibraryDto.isPublic) === 'true' ? 1 : 0;
+
       const pages = await this.database.query(
-        "SELECT id, publicSlug FROM Page WHERE libraryId = ? AND type IN ('page', 'group')",
-        [id]
+        "SELECT id, publicSlug FROM Page WHERE libraryId = ? AND type IN ('page', 'group') AND COALESCE(isArchived, 0) = 0",
+        [id],
       );
-      console.debug(`Found ${pages.length} pages to update`);
 
       for (const page of pages) {
-         let slug = page.publicSlug;
-         // If enabling public access and no slug exists, generate one
-         if (isPublicVal && !slug) {
-             slug = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-             console.debug(`Generated slug for page ${page.id}: ${slug}`);
-         }
-         await this.database.run(
-            'UPDATE Page SET isPublic = ?, publicSlug = ? WHERE id = ?',
-            [isPublicVal, slug, page.id]
-         );
+        let slug = page.publicSlug;
+        if (isPublicVal && !slug) {
+          slug =
+            Math.random().toString(36).substring(2, 10) +
+            Math.random().toString(36).substring(2, 10);
+        }
+        await this.database.run('UPDATE Page SET isPublic = ?, publicSlug = ? WHERE id = ?', [
+          isPublicVal,
+          slug,
+          page.id,
+        ]);
       }
     }
 
@@ -247,19 +285,20 @@ export class LibraryService {
    * Delete a library
    */
   async remove(userId: string, id: string): Promise<{ success: boolean; message: string }> {
+    await this.collabService.assertPageAccess(userId, id, 'manager', {
+      notFoundMessage: 'Library not found',
+    });
+
     const library = await this.database.queryOne(
-      "SELECT id FROM Page WHERE id = ? AND userId = ? AND type = 'library'",
-      [id, userId]
+      "SELECT id FROM Page WHERE id = ? AND type = 'library'",
+      [id],
     );
 
     if (!library) {
       throw new NotFoundException('Library not found');
     }
 
-    await this.database.run(
-      'DELETE FROM Page WHERE id = ? AND userId = ?',
-      [id, userId]
-    );
+    await this.database.run('DELETE FROM Page WHERE id = ?', [id]);
 
     return { success: true, message: 'Library deleted successfully' };
   }

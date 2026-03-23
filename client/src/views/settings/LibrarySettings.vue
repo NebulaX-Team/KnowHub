@@ -35,11 +35,14 @@ import {
 import { libraryApi, type CreateLibraryRequest, type UpdateLibraryRequest } from '@/api/library'
 import type { Library } from '@/types'
 import { useLibraryStore } from '@/stores/library'
+import { useSystemStore } from '@/stores/system'
+import { formatDateByOffset } from '@/utils/datetime'
 
 const router = useRouter()
 const message = useMessage()
 const libraryStore = useLibraryStore()
-const { t } = useI18n()
+const systemStore = useSystemStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const libraries = ref<Library[]>([])
@@ -114,13 +117,13 @@ const columns = computed<DataTableColumns<Library>>(() => [
     title: t('settingsPage.libraries.table.created'),
     key: 'createdAt',
     width: 140,
-    render: (row) => new Date(row.createdAt).toLocaleDateString()
+    render: (row) => formatDateByOffset(row.createdAt, systemStore.siteTimezone, locale.value)
   },
   {
     title: t('settingsPage.libraries.table.updated'),
     key: 'updatedAt',
     width: 140,
-    render: (row) => new Date(row.updatedAt).toLocaleDateString()
+    render: (row) => formatDateByOffset(row.updatedAt, systemStore.siteTimezone, locale.value)
   },
   {
     title: t('settingsPage.libraries.table.actions'),

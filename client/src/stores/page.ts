@@ -97,6 +97,32 @@ export const usePageStore = defineStore('page', () => {
     return roots
   }
 
+  const collectNodeAndDescendantIds = (rootId: string): Set<string> => {
+    const ids = new Set<string>([rootId])
+    const childrenByParent = new Map<string, string[]>()
+
+    pages.value.forEach((page) => {
+      if (!page.parentId) return
+      const children = childrenByParent.get(page.parentId) || []
+      children.push(page.id)
+      childrenByParent.set(page.parentId, children)
+    })
+
+    const queue: string[] = [rootId]
+    while (queue.length > 0) {
+      const currentId = queue.shift()!
+      const children = childrenByParent.get(currentId) || []
+      children.forEach((childId) => {
+        if (!ids.has(childId)) {
+          ids.add(childId)
+          queue.push(childId)
+        }
+      })
+    }
+
+    return ids
+  }
+
   // Fetch pages for current library
   const fetchPages = async (libraryId?: string): Promise<void> => {
     setLoading(true)
@@ -254,6 +280,54 @@ export const usePageStore = defineStore('page', () => {
     }
   }
 
+  // Archive page/group
+  const archivePage = async (id: string): Promise<boolean> => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await pageApi.archivePage(id)
+      if (response.code === 0) {
+        const archivedIds = collectNodeAndDescendantIds(id)
+        pages.value = pages.value.filter(p => !archivedIds.has(p.id))
+        if (currentPage.value?.id && archivedIds.has(currentPage.value.id)) {
+          setCurrentPage(null)
+        }
+        pageTree.value = buildPageTree(pages.value)
+        return true
+      }
+
+      setError(response.message || tr('errors.page.deleteFailed'))
+      return false
+    } catch (err: any) {
+      setError(err.response?.data?.message || tr('errors.page.deleteFailed'))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Restore archived page/group
+  const unarchivePage = async (id: string): Promise<boolean> => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await pageApi.unarchivePage(id)
+      if (response.code === 0) {
+        return true
+      }
+
+      setError(response.message || tr('errors.page.updateFailed'))
+      return false
+    } catch (err: any) {
+      setError(err.response?.data?.message || tr('errors.page.updateFailed'))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Move page
   const movePage = async (id: string, data: {
     newParentId?: string | null
@@ -391,6 +465,8 @@ export const usePageStore = defineStore('page', () => {
     createPage,
     updatePage,
     deletePage,
+    archivePage,
+    unarchivePage,
     movePage,
     fetchVersions,
     createVersion,

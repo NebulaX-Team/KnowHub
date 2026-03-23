@@ -26,15 +26,19 @@ import {
   SearchOutline,
   OpenOutline,
   TrashOutline,
+  ArchiveOutline,
   FolderOutline
 } from '@vicons/ionicons5'
 import { pageApi, type PageQueryParams } from '@/api/page'
 import { libraryApi } from '@/api/library'
+import { useSystemStore } from '@/stores/system'
+import { formatDateByOffset } from '@/utils/datetime'
 import type { Page, Library } from '@/types'
 
 const router = useRouter()
 const message = useMessage()
-const { t } = useI18n()
+const systemStore = useSystemStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const pages = ref<Page[]>([])
@@ -125,13 +129,13 @@ const columns = computed<DataTableColumns<Page>>(() => [
     title: t('settingsPage.groups.table.created'),
     key: 'createdAt',
     width: 120,
-    render: (row) => new Date(row.createdAt).toLocaleDateString()
+    render: (row) => formatDateByOffset(row.createdAt, systemStore.siteTimezone, locale.value)
   },
   {
     title: t('settingsPage.groups.table.updated'),
     key: 'updatedAt',
     width: 120,
-    render: (row) => new Date(row.updatedAt).toLocaleDateString()
+    render: (row) => formatDateByOffset(row.updatedAt, systemStore.siteTimezone, locale.value)
   },
   {
     title: t('settingsPage.groups.table.actions'),
@@ -148,6 +152,16 @@ const columns = computed<DataTableColumns<Page>>(() => [
               onClick: () => navigateToPage(row)
             }, { icon: () => h(NIcon, { component: OpenOutline }) }),
             default: () => t('settingsPage.groups.openGroup')
+          }),
+          h(NPopconfirm, {
+            onPositiveClick: () => handleArchive(row),
+            positiveText: t('sidebar.actions.archive'),
+            negativeText: t('common.actions.cancel')
+          }, {
+            default: () => t('settingsPage.groups.confirmArchive', { title: rowTitle }),
+            trigger: () => h(NButton, {
+              size: 'small', quaternary: true, circle: true, type: 'warning'
+            }, { icon: () => h(NIcon, { component: ArchiveOutline }) })
           }),
           h(NPopconfirm, {
             onPositiveClick: () => handleDelete(row),
@@ -214,6 +228,20 @@ async function handleDelete(page: Page) {
     }
   } catch {
     message.error(t('settingsPage.groups.messages.deleteFailed'))
+  }
+}
+
+async function handleArchive(page: Page) {
+  try {
+    const response = await pageApi.archivePage(page.id)
+    if (response.code === 0) {
+      message.success(t('settingsPage.groups.messages.archiveSuccess'))
+      await loadPages()
+    } else {
+      message.error(t('settingsPage.groups.messages.archiveFailed'))
+    }
+  } catch {
+    message.error(t('settingsPage.groups.messages.archiveFailed'))
   }
 }
 

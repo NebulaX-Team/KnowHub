@@ -1,5 +1,4 @@
 import { DatabaseService } from './database.service';
-import { runMigrations } from './migrator';
 
 /**
  * 数据库初始化脚本
@@ -37,16 +36,12 @@ async function initializeDatabase() {
     // 1. 初始化表结构
     console.log('\n📋 Initializing tables...');
     await databaseService.initTables();
-    
-    // 2. 运行迁移
-    console.log('\n📋 Running migrations...');
-    await runMigrations(databaseService);
-    
-    // 3. 确保默认配置
+
+    // 2. 确保默认配置
     console.log('\n⚙️ Ensuring default configuration...');
     await databaseService.ensureDefaultConfig();
-    
-    // 4. 检查完整性
+
+    // 3. 检查完整性
     console.log('\n🔍 Checking database integrity...');
     const isIntegrityOk = await databaseService.checkIntegrity();
     if (!isIntegrityOk) {

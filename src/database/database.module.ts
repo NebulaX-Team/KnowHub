@@ -1,6 +1,5 @@
 import { Global, Module, OnModuleInit } from '@nestjs/common';
 import { DatabaseService } from './database.service';
-import { runMigrations } from './migrator';
 
 @Global()
 @Module({
@@ -22,15 +21,7 @@ export class DatabaseModule implements OnModuleInit {
       throw error;
     }
 
-    // 2. 运行迁移
-    try {
-      await runMigrations(this.databaseService);
-    } catch (error) {
-      console.error('❌ Migration failed:', error);
-      throw error;
-    }
-
-    // 3. 确保默认配置存在
+    // 2. 确保默认配置存在
     try {
       await this.databaseService.ensureDefaultConfig();
     } catch (error) {
@@ -38,7 +29,7 @@ export class DatabaseModule implements OnModuleInit {
       // 不抛出错误，允许服务器继续启动
     }
 
-    // 4. 检查数据库完整性
+    // 3. 检查数据库完整性
     try {
       const isIntegrityOk = await this.databaseService.checkIntegrity();
       if (!isIntegrityOk) {

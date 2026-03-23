@@ -5,19 +5,22 @@ import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
 import { usePageStore } from '@/stores/page'
 import { useLibraryStore } from '@/stores/library'
+import { useSystemStore } from '@/stores/system'
 import { tagApi } from '@/api/tag'
 import { pageApi } from '@/api/page'
+import { templateApi } from '@/api/template'
 import type { Tag } from '@/types'
 import { tiptapToMarkdown } from '@/utils/tiptap-to-markdown'
 import { copyToClipboard } from '@/utils/clipboard'
+import { formatDateByOffset, formatDateTimeByOffset } from '@/utils/datetime'
 import {
   NBreadcrumb, NBreadcrumbItem,
   NInput, NTag, NButton, NIcon, NSpin, NDrawer, NDrawerContent,
-  NInputNumber, useMessage, NDropdown
+  NInputNumber, useMessage, NDropdown, NModal, NCard, NForm, NFormItem
 } from 'naive-ui'
 import {
   InformationCircleOutline, TimeOutline, ListOutline, GlobeOutline,
-  AddOutline, EllipsisHorizontalOutline, CopyOutline
+  AddOutline, EllipsisHorizontalOutline, CopyOutline, BookmarkOutline
 } from '@vicons/ionicons5'
 import { useBreakpoints, breakpointsTailwind } from '@vueuse/core'
 import TiptapEditor from '@/components/editor/TiptapEditor.vue'
@@ -28,6 +31,7 @@ import VersionHistoryDrawer from '@/components/common/VersionHistoryDrawer.vue'
 const route = useRoute()
 const pageStore = usePageStore()
 const libraryStore = useLibraryStore()
+const systemStore = useSystemStore()
 const message = useMessage()
 const { t, locale } = useI18n()
 
@@ -47,6 +51,13 @@ const showHistory = ref(false)
 const showTasks = ref(false)
 const showPublic = ref(false)
 const showVersionHistory = ref(false)
+const showSaveTemplateModal = ref(false)
+const saveTemplateLoading = ref(false)
+const saveTemplateModel = ref({
+  title: '',
+  description: '',
+  category: '',
+})
 const isGroupPage = computed(() => pageStore.currentPage?.type === 'group')
 
 // Load page data
@@ -338,6 +349,59 @@ const handleCopyMarkdown = async () => {
   }
 }
 
+const openSaveTemplateModal = () => {
+  if (!pageStore.currentPage) return
+
+  const baseTitle = pageStore.currentPage.title?.trim() || t('pageContent.templateModal.defaultTitle')
+  saveTemplateModel.value = {
+    title: `${baseTitle} ${t('pageContent.templateModal.defaultTitleSuffix')}`.trim(),
+    description: pageStore.currentPage.description || '',
+    category: '',
+  }
+  showSaveTemplateModal.value = true
+}
+
+const clonePageContentForTemplate = () => {
+  const source = pageStore.currentPage?.content
+  if (!source || typeof source !== 'object') {
+    return { type: 'doc', content: [] }
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(source))
+  } catch {
+    return { type: 'doc', content: [] }
+  }
+}
+
+const handleSaveAsTemplate = async () => {
+  if (!saveTemplateModel.value.title.trim()) {
+    message.warning(t('pageContent.messages.templateNameRequired'))
+    return
+  }
+
+  saveTemplateLoading.value = true
+  try {
+    const response = await templateApi.createTemplate({
+      title: saveTemplateModel.value.title.trim(),
+      description: saveTemplateModel.value.description.trim() || undefined,
+      category: saveTemplateModel.value.category.trim() || undefined,
+      content: clonePageContentForTemplate(),
+    })
+
+    if (response.code === 0) {
+      message.success(t('pageContent.messages.templateSaved'))
+      showSaveTemplateModal.value = false
+    } else {
+      message.error(t('pageContent.messages.saveTemplateFailed'))
+    }
+  } catch {
+    message.error(t('pageContent.messages.saveTemplateFailed'))
+  } finally {
+    saveTemplateLoading.value = false
+  }
+}
+
 // Mobile Actions Menu
 const mobileActionOptions = computed(() => [
   { label: t('pageContent.mobileAction.info'), key: 'info', icon: () => h(NIcon, null, { default: () => h(InformationCircleOutline) }) },
@@ -444,8 +508,8 @@ const handleMobileActionSelect = (key: string) => {
         </div>
 
         <div class="timestamps">
-          <span>{{ t('pageContent.timestamps.created', { date: new Date(pageStore.currentPage.createdAt).toLocaleDateString(locale) }) }}</span>
-          <span>{{ t('pageContent.timestamps.updated', { date: new Date(pageStore.currentPage.updatedAt).toLocaleDateString(locale) }) }}</span>
+          <span>{{ t('pageContent.timestamps.created', { date: formatDateByOffset(pageStore.currentPage.createdAt, systemStore.siteTimezone, locale) }) }}</span>
+          <span>{{ t('pageContent.timestamps.updated', { date: formatDateByOffset(pageStore.currentPage.updatedAt, systemStore.siteTimezone, locale) }) }}</span>
         </div>
       </div>
     </div>
@@ -508,12 +572,22 @@ const handleMobileActionSelect = (key: string) => {
               <template #icon><n-icon><CopyOutline /></n-icon></template>
               {{ t('pageContent.actions.copyAsMarkdown') }}
             </n-button>
+            <n-button
+              size="small"
+              type="primary"
+              secondary
+              @click="openSaveTemplateModal"
+              style="width: 100%; margin-top: 8px;"
+            >
+              <template #icon><n-icon><BookmarkOutline /></n-icon></template>
+              {{ t('pageContent.actions.saveAsTemplate') }}
+            </n-button>
           </div>
 
           <div class="info-section">
             <h4>{{ t('pageContent.infoDrawer.timestamps') }}</h4>
-            <p><strong>{{ t('pageContent.infoDrawer.created') }}:</strong> {{ new Date(pageStore.currentPage.createdAt).toLocaleString(locale) }}</p>
-            <p><strong>{{ t('pageContent.infoDrawer.updated') }}:</strong> {{ new Date(pageStore.currentPage.updatedAt).toLocaleString(locale) }}</p>
+            <p><strong>{{ t('pageContent.infoDrawer.created') }}:</strong> {{ formatDateTimeByOffset(pageStore.currentPage.createdAt, systemStore.siteTimezone, locale) }}</p>
+            <p><strong>{{ t('pageContent.infoDrawer.updated') }}:</strong> {{ formatDateTimeByOffset(pageStore.currentPage.updatedAt, systemStore.siteTimezone, locale) }}</p>
           </div>
         </div>
       </n-drawer-content>
@@ -543,6 +617,49 @@ const handleMobileActionSelect = (key: string) => {
       :page-id="pageStore.currentPage?.id"
       @restore="loadPage"
     />
+
+    <NModal v-model:show="showSaveTemplateModal">
+      <NCard
+        style="width: 600px"
+        :title="t('pageContent.templateModal.title')"
+        :bordered="false"
+        size="huge"
+        role="dialog"
+        aria-modal="true"
+      >
+        <NForm>
+          <NFormItem :label="t('pageContent.templateModal.form.name')">
+            <NInput
+              v-model:value="saveTemplateModel.title"
+              :placeholder="t('pageContent.templateModal.placeholders.name')"
+            />
+          </NFormItem>
+          <NFormItem :label="t('pageContent.templateModal.form.description')">
+            <NInput
+              v-model:value="saveTemplateModel.description"
+              type="textarea"
+              :placeholder="t('pageContent.templateModal.placeholders.description')"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+            />
+          </NFormItem>
+          <NFormItem :label="t('pageContent.templateModal.form.category')">
+            <NInput
+              v-model:value="saveTemplateModel.category"
+              :placeholder="t('pageContent.templateModal.placeholders.category')"
+            />
+          </NFormItem>
+        </NForm>
+
+        <template #footer>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <NButton @click="showSaveTemplateModal = false">{{ t('common.actions.cancel') }}</NButton>
+            <NButton type="primary" :loading="saveTemplateLoading" @click="handleSaveAsTemplate">
+              {{ t('common.actions.create') }}
+            </NButton>
+          </div>
+        </template>
+      </NCard>
+    </NModal>
   </div>
   <div v-else-if="loading" class="loading-state">
     <n-spin size="large" />

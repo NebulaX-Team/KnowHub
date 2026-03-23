@@ -2,15 +2,18 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { NSpin, NResult, NCard, NAvatar, NText, NIcon, NEmpty, NTime, NButton, NLayoutHeader } from 'naive-ui'
+import { NSpin, NResult, NCard, NAvatar, NText, NIcon, NEmpty, NButton, NLayoutHeader } from 'naive-ui'
 import { LibraryOutline, BookOutline, SunnyOutline, MoonOutline } from '@vicons/ionicons5'
 import { userApi, type PublicUserProfile } from '@/api/user'
 import { useTheme } from '@/composables/useTheme'
+import { useSystemStore } from '@/stores/system'
+import { formatDateByOffset } from '@/utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
 const { isDark, toggleTheme } = useTheme()
-const { t } = useI18n()
+const systemStore = useSystemStore()
+const { t, locale } = useI18n()
 const profile = ref<PublicUserProfile | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -75,7 +78,7 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
         <h1 class="profile-name">{{ profile.displayName }}</h1>
         <NText depth="3" class="profile-joined">
           {{ t('publicProfile.joined') }}
-          <NTime :time="new Date(profile.createdAt).getTime()" type="date" />
+          {{ formatDateByOffset(profile.createdAt, systemStore.siteTimezone, locale) }}
         </NText>
       </div>
     </div>
@@ -114,7 +117,7 @@ watch(() => route.params.name, fetchProfile, { immediate: true })
                 </NText>
                 <NText depth="3" style="font-size: 12px">
                   {{ t('publicProfile.updated') }}
-                  <NTime :time="new Date(lib.updatedAt).getTime()" type="relative" />
+                  {{ formatDateByOffset(lib.updatedAt, systemStore.siteTimezone, locale) }}
                 </NText>
               </div>
             </div>

@@ -13,6 +13,8 @@ import {
   useMessage 
 } from 'naive-ui'
 import { systemApi } from '@/api/system'
+import { isValidUtcOffset, normalizeUtcOffset } from '@/utils/datetime'
+import { useSystemStore } from '@/stores/system'
 
 const route = useRoute()
 const message = useMessage()
@@ -20,6 +22,7 @@ const { t } = useI18n()
 const formRef = ref<FormInst | null>(null)
 const loading = ref(false)
 const saving = ref(false)
+const systemStore = useSystemStore()
 
 const title = computed(() => {
   const titleKey = route.meta.titleKey as string | undefined
@@ -33,7 +36,8 @@ const formValue = ref({
   titleZh: '',
   titleEn: '',
   descriptionZh: '',
-  descriptionEn: ''
+  descriptionEn: '',
+  siteTimezone: 'UTC+8',
 })
 
 // 表单验证规则
@@ -53,7 +57,22 @@ const rules = computed(() => ({
   descriptionEn: [
     { required: true, message: t('settingsPage.siteInfo.validation.descriptionEnRequired'), trigger: ['blur', 'input'] },
     { max: 500, message: t('settingsPage.siteInfo.validation.descriptionMax'), trigger: ['blur', 'input'] }
-  ]
+  ],
+  siteTimezone: [
+    { required: true, message: t('settingsPage.siteInfo.validation.timezoneRequired'), trigger: ['blur', 'input'] },
+    {
+      trigger: ['blur', 'input'],
+      validator: (_rule: any, value: string) => {
+        if (!value?.trim()) {
+          return new Error(t('settingsPage.siteInfo.validation.timezoneRequired'))
+        }
+        if (!isValidUtcOffset(value)) {
+          return new Error(t('settingsPage.siteInfo.validation.timezoneInvalid'))
+        }
+        return true
+      },
+    },
+  ],
 }))
 
 // 获取网站信息
@@ -73,7 +92,8 @@ async function loadSiteInfo() {
       titleZh: titleI18n['zh-CN'] || '',
       titleEn: titleI18n['en-US'] || '',
       descriptionZh: descriptionI18n['zh-CN'] || '',
-      descriptionEn: descriptionI18n['en-US'] || ''
+      descriptionEn: descriptionI18n['en-US'] || '',
+      siteTimezone: normalizeUtcOffset(response.data.siteTimezone || 'UTC+8'),
     }
   } catch (error) {
     message.error(t('settingsPage.siteInfo.messages.loadFailed'))
@@ -88,8 +108,8 @@ async function handleSave() {
   try {
     await formRef.value?.validate()
     saving.value = true
-    
-    const response = await systemApi.updateSiteInfo({
+
+    const updated = await systemStore.updateConfig({
       titleI18n: {
         'zh-CN': formValue.value.titleZh,
         'en-US': formValue.value.titleEn
@@ -97,24 +117,18 @@ async function handleSave() {
       descriptionI18n: {
         'zh-CN': formValue.value.descriptionZh,
         'en-US': formValue.value.descriptionEn
-      }
+      },
+      siteTimezone: normalizeUtcOffset(formValue.value.siteTimezone),
     })
-    const titleI18n = response.data.titleI18n || {
-      'zh-CN': response.data.title || '',
-      'en-US': response.data.title || ''
-    }
-    const descriptionI18n = response.data.descriptionI18n || {
-      'zh-CN': response.data.description || '',
-      'en-US': response.data.description || ''
-    }
-    
+
     formValue.value = {
-      titleZh: titleI18n['zh-CN'] || '',
-      titleEn: titleI18n['en-US'] || '',
-      descriptionZh: descriptionI18n['zh-CN'] || '',
-      descriptionEn: descriptionI18n['en-US'] || ''
+      titleZh: updated.titleI18n['zh-CN'] || '',
+      titleEn: updated.titleI18n['en-US'] || '',
+      descriptionZh: updated.descriptionI18n['zh-CN'] || '',
+      descriptionEn: updated.descriptionI18n['en-US'] || '',
+      siteTimezone: normalizeUtcOffset(updated.siteTimezone || 'UTC+8'),
     }
-    
+
     message.success(t('settingsPage.siteInfo.messages.saveSuccess'))
   } catch (error) {
     message.error(t('settingsPage.siteInfo.messages.saveFailed'))
@@ -152,6 +166,17 @@ onMounted(() => {
         require-mark-placement="right-hanging"
         class="form-wrapper"
       >
+        <n-form-item :label="t('settingsPage.siteInfo.siteTimezone')" path="siteTimezone">
+          <n-input
+            v-model:value="formValue.siteTimezone"
+            :placeholder="t('settingsPage.siteInfo.siteTimezonePlaceholder')"
+            clearable
+          />
+          <template #feedback>
+            {{ t('settingsPage.siteInfo.timezoneFeedback') }}
+          </template>
+        </n-form-item>
+
         <div class="form-columns">
           <div class="form-column">
             <n-form-item :label="t('settingsPage.siteInfo.siteTitleZh')" path="titleZh">

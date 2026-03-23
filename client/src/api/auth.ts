@@ -49,6 +49,8 @@ export interface AuthResponse {
       isAdmin: boolean
       isBanned?: boolean
       isProfilePublic?: boolean
+      createdAt: string
+      updatedAt: string
     }
   }
 }
