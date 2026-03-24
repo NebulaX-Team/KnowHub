@@ -41,8 +41,8 @@ const onMouseUp = () => {
 </script>
 
 <template>
-  <node-view-wrapper class="image-block-wrapper">
-    <div 
+  <node-view-wrapper as="span" class="image-block-wrapper">
+    <span 
         class="image-view" 
         :class="{ 
             'is-selected': props.selected,
@@ -56,12 +56,12 @@ const onMouseUp = () => {
         :title="props.node.attrs.title" 
       />
       
-      <div 
+      <span 
           v-if="props.editor.isEditable"
           class="resize-handle" 
           @mousedown.prevent.stop="onMouseDown"
-      ></div>
-    </div>
+      ></span>
+    </span>
   </node-view-wrapper>
 </template>
 
@@ -69,12 +69,14 @@ const onMouseUp = () => {
 @use '@/assets/styles/variables' as *;
 
 .image-block-wrapper {
-    margin: 1rem 0;
-    display: flex;
-    justify-content: center;
+    display: inline-block;
+    vertical-align: top;
+    margin: 0.25rem 0.25rem;
+    max-width: 100%;
     
     .image-view {
         position: relative;
+        display: inline-block;
         max-width: 100%;
         
         img {

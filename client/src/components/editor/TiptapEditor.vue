@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@tiptap/extension-table'
 import { ImageBlock } from './extensions/image-block'
+import { InlineImage } from './extensions/inline-image'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { CodeBlockWithCopy } from './extensions/code-block'
@@ -91,6 +92,39 @@ const TableHeader = BaseTableHeader.extend({
     }
   },
 })
+
+// Normalize saved content recursively for backward compatibility after
+// images changed from block nodes to inline nodes.
+function normalizeContent(content: any): any {
+  const blockContainers = new Set(['doc', 'blockquote'])
+
+  const normalizeNode = (node: any): any => {
+    if (!node || typeof node !== 'object') {
+      return node
+    }
+
+    if (!Array.isArray(node.content)) {
+      return node
+    }
+
+    const normalizedContent = node.content.flatMap((child: any) => {
+      const normalizedChild = normalizeNode(child)
+
+      if (normalizedChild?.type === 'image' && blockContainers.has(node.type)) {
+        return [{ type: 'paragraph', content: [normalizedChild] }]
+      }
+
+      return [normalizedChild]
+    })
+
+    return {
+      ...node,
+      content: normalizedContent,
+    }
+  }
+
+  return normalizeNode(content)
+}
 
 interface Props {
   content?: any
@@ -646,7 +680,7 @@ const onHeadingOptionSelect = (value: string | number) => {
 }
 
 const editor = useEditor({
-  content: props.content ? toRaw(props.content) : '',
+  content: props.content ? normalizeContent(toRaw(props.content)) : '',
   editable: props.editable,
   extensions: [
     StarterKit.configure({
@@ -664,6 +698,7 @@ const editor = useEditor({
     TableRow,
     TableHeader,
     TableCell,
+    InlineImage,
     ImageBlock,
     TaskList,
     TaskItem.configure({
@@ -711,39 +746,34 @@ const editor = useEditor({
       linkBubbleRef.value?.hide()
       return false
     },
-    handleDrop: (view, event, _ , moved) => {
-      if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
-        const file = event.dataTransfer.files[0]
-        if (file.type.startsWith('image/')) {
-          event.preventDefault() // Prevent default browser behavior (download)
-          const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY })
-          if (coordinates) {
-             console.debug('handleDrop - uploading with pageId:', props.pageId, 'libraryId:', props.libraryId);
-             uploadApi.uploadImage(file, props.pageId, props.libraryId).then(res => {
-                 const url = res.url || (res.data && res.data.url)
-                 if (url) {
-                    editor.value?.chain()
-                      .insertContentAt(coordinates.pos, {
-                        type: 'image',
-                        attrs: { src: url }
-                      })
-                      .run()
-                 }
-             }).catch(err => {
-                 console.error(err)
-                 message.error(t('editor.imageUploader.messages.uploadFailed'))
-             })
-             return true
-          }
-        }
-      }
-      return false
-    },
     handlePaste: (_view, event) => {
       if (!props.editable || !editor.value) return false
 
       const clipboardData = event.clipboardData
       if (!clipboardData) return false
+
+      const items = clipboardData.items
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i]
+          if (!item.type.startsWith('image/')) continue
+
+          const file = item.getAsFile()
+          if (!file) continue
+
+          event.preventDefault()
+          uploadApi.uploadImage(file, props.pageId, props.libraryId).then(res => {
+            const url = res.url || (res.data && res.data.url)
+            if (url && editor.value) {
+              editor.value.chain().focus().setImage({ src: url }).run()
+            }
+          }).catch(err => {
+            console.error(err)
+            message.error(t('editor.imageUploader.messages.uploadFailed'))
+          })
+          return true
+        }
+      }
 
       if (clipboardData.files && clipboardData.files.length > 0) {
         return false
@@ -761,6 +791,31 @@ const editor = useEditor({
         editor.value?.chain().focus().insertContent(normalizedText).run()
       })
       return true
+    },
+    handleDrop: (view, event, _ , moved) => {
+      if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+        const file = event.dataTransfer.files[0]
+        if (file.type.startsWith('image/')) {
+          event.preventDefault()
+          const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY })
+          if (coordinates) {
+             console.debug('handleDrop - uploading with pageId:', props.pageId, 'libraryId:', props.libraryId);
+             uploadApi.uploadImage(file, props.pageId, props.libraryId).then(res => {
+                 const url = res.url || (res.data && res.data.url)
+                 if (url && editor.value) {
+                    editor.value.chain().focus()
+                      .insertContentAt(coordinates.pos, { type: 'image', attrs: { src: url } })
+                      .run()
+                 }
+             }).catch(err => {
+                 console.error(err)
+                 message.error(t('editor.imageUploader.messages.uploadFailed'))
+             })
+             return true
+          }
+        }
+      }
+      return false
     }
   }
 })
@@ -780,7 +835,7 @@ watch(() => props.content, (newContent) => {
     // Only update if content is different and not just a re-render
     if (contentString !== currentHash && contentString !== lastContentHash) {
       console.debug('Updating editor content (content actually changed)');
-      editor.value.commands.setContent(toRaw(newContent))
+      editor.value.commands.setContent(normalizeContent(toRaw(newContent)))
       lastContentHash = contentString
     } else {
       console.debug('Skipping editor update (content unchanged)');

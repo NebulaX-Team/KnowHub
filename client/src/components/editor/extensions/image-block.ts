@@ -3,6 +3,9 @@ import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import ImageBlockView from './ImageBlockView.vue'
 
 export const ImageBlock = Image.extend({
+  inline: true,
+  group: 'inline',
+
   addAttributes() {
     return {
       ...this.parent?.(),

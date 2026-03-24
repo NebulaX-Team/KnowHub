@@ -230,7 +230,14 @@ export const usePageStore = defineStore('page', () => {
         
         // Update current page if it's the one being edited
         if (currentPage.value?.id === id) {
-          setCurrentPage(updatedPage)
+          if (data.content !== undefined) {
+            // During content auto-save, preserve the editor's content to avoid
+            // resetting the editor state, which causes cursor jumps and input interruption.
+            // The editor is the source of truth for content while editing.
+            setCurrentPage({ ...updatedPage, content: currentPage.value.content })
+          } else {
+            setCurrentPage(updatedPage)
+          }
         }
         
         // Rebuild tree

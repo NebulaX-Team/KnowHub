@@ -92,12 +92,12 @@
 - **bun** or **pnpm** (package manager)
 - **Git** (for cloning)
 
-### Installation
+### Deploy with Docker Compose
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/NebulaX-Team/KnowHub.git
-cd KnowHub
+git clone https://github.com/LunaDeerTech/Schema.git
+cd Schema
 ```
 
 2. **Install dependencies:**
@@ -169,11 +169,21 @@ Notes:
   - `en-US` description: `A collaborative knowledge hub designed for individuals, teams, and organizations.`
 - The admin email submitted during setup is normalized to lowercase and can be used to log in immediately after initialization.
 
-## 🛠️ Development
+## ⚙️ Docker Compose Configuration
 
-### Available Scripts
+The deployment is configured through Compose variables in `.env`.
 
-#### Backend (Root Directory)
+| Variable | Default | Description |
+|--------|-------------|-------------|
+| `SCHEMA_IMAGE` | `ghcr.io/lunadeertech/schema:latest` | Container image to deploy |
+| `SCHEMA_CONTAINER_NAME` | `schema-app` | Container name |
+| `SCHEMA_NODE_ENV` | `production` | Runtime environment |
+| `SCHEMA_PORT` | `3000` | Host and container port |
+| `SCHEMA_DB_PATH` | `/app/db/schema-database.sqlite` | SQLite database path inside the container |
+| `SCHEMA_JWT_SECRET` | `!!!CHANGE_THIS!!!` | JWT signing secret; replace this before deployment |
+| `SCHEMA_JWT_EXPIRES_IN` | `7d` | JWT expiration time |
+| `SCHEMA_UPLOAD_DIR` | `/app/uploads` | Upload directory inside the container |
+| `SCHEMA_MAX_FILE_SIZE` | `10485760` | Upload size limit in bytes |
 
 | Script | Description |
 |--------|-------------|

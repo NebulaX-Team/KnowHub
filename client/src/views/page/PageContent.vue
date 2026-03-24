@@ -785,11 +785,21 @@ const handleMobileActionSelect = (key: string) => {
   box-shadow: var(--shadow-card);
 
   pre {
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
     font-family: monospace;
     font-size: 12px;
     color: var(--color-toc-text);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  pre code {
+    display: block;
+    min-width: max-content;
+    white-space: inherit;
   }
 }
 
